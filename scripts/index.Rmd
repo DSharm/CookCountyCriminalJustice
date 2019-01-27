@@ -1,0 +1,330 @@
+---
+title: "Cook County SAO_2"
+author: "Damini Sharma"
+date: "1/27/2019"
+output: 
+  html_document:
+    code_folding: hide
+
+---
+
+```{r warning=FALSE , message=FALSE, include=FALSE}
+# load necessary packages 
+libs <- c("tidyverse", "stringr", "readr", "dplyr", "ggplot2", "readstata13","foreign",
+          "magrittr","lubridate","here","ggrepel")
+lapply(libs, library, character.only=TRUE)
+
+
+```
+
+In this file, I create a few different graphs looking at the length of cases that go through the Cook County State Attorneys Office. First, I explore the sentences dataset to look at average length of cases in days from 2011 to 2018, 
+plotted alongside the total number of defandants receiving sentences in that time period. Next, I look at the number of cases coming into the SAO using the Intake and Initiations data, and see if there are any particular offense types 
+that are driving the overall trends in number of cases sentenced. Finally, I look at the distribution of case lengths by offense types before and after 2016, which is when we see a significant drop in the number of cases.
+
+```{r warning=FALSE, message = FALSE}
+# Read in the data
+intake <- read.csv(here("data_source","SAO Data","Intake.csv"),stringsAsFactors = FALSE) 
+initiation <- read.csv(here("data_source","SAO Data","Initiation.csv"),stringsAsFactors = FALSE) 
+sentence <- read.csv(here("data_source","SAO Data","Sentencing.csv"),stringsAsFactors = FALSE) 
+disposition <- read.csv(here("data_source","SAO Data","Dispositions.csv"),stringsAsFactors = FALSE) 
+
+# Clean data
+
+# For graph 1, we look at sentences data only. 
+# There is already a length of case in days variable but this is from arraignment to 
+# sentencing, and I want to start at arrest so I define my own
+
+# Since the sentencing data is not unique on case participant ID, I first collapse the data
+# to get an average case length per participant ID. This is because many defendants will have
+# multiple charges, and say each charge takes 8 days to go from arraignment to sentencing. Those
+# are the same 8 days, so we don't want to double count them.
+sentence %<>%
+  mutate(SENTENCE_DATE = as.Date(SENTENCE_DATE,'%m/%d/%Y' )) %>% 
+  mutate(ARREST_DATE = as.Date(ARREST_DATE,'%m/%d/%Y' )) %>% 
+  mutate(case_length_total = unclass(difftime(SENTENCE_DATE,ARREST_DATE,units = "days"))) %>%
+  mutate(sentence_month = round_date(SENTENCE_DATE, "month"))  
+
+case_length <- sentence %>% 
+  group_by(sentence_month, CASE_PARTICIPANT_ID) %>% 
+  summarise(case_length_p = mean(case_length_total, na.rm = TRUE)) %>% 
+  group_by(sentence_month) %>% 
+  summarise(felonies_total = n_distinct(CASE_PARTICIPANT_ID), 
+            case_length_total = sum(case_length_p, na.rm = TRUE),
+            avg_case_length = mean(case_length_p, na.rm = TRUE)) %>% 
+  filter(felonies_total > 0) %>% 
+  filter(case_length_total > 0) %>% 
+  filter(avg_case_length > 0 & avg_case_length < 2000) %>% 
+  filter(sentence_month > "2011-01-01" & sentence_month < "2018-01-01") %>% 
+  gather(type_measure,n,felonies_total:avg_case_length)
+
+case_length_2011 <- case_length %>% filter(sentence_month == "2011-02-01") %>% select(-sentence_month)
+
+# merge this value back onto long dataset
+case_length_as_pct <- left_join(case_length, case_length_2011, by="type_measure") %>% 
+  mutate(pct_change = (n.x / n.y))
+
+```
+
+
+```{r warning=FALSE, message = FALSE}
+plot1 <- 
+  case_length_as_pct %>% 
+  ggplot(aes(x=sentence_month, y=pct_change, color=type_measure)) + 
+  geom_point(size = 0.8) +
+  geom_smooth(size=0.3) +
+  scale_color_manual(values=c("chocolate4","gray80","darkorange")) +
+  theme_classic() +
+  theme(legend.position = "none") +
+  scale_y_continuous(labels = scales::percent, limits = c(0.8 , 1.9)) +
+  labs(
+    subtitle = "Cook County Crimes Sentenced From 2011 to 2018",
+    title = "Average case length increases even as total defendants sentenced decrease",
+    y="",
+    x = "Year",
+    caption = "Source: Cook County State Attorney's Office Data Portal: Sentences"
+  ) +
+  geom_text(aes(x = as.Date("2015-06-01"), y = 1.75, label = "Total Number of Days \n Spent on Cases"),color="gray70") +
+  geom_text(aes(x = as.Date("2015-05-01"), y = .90, label = "Total Number of \n Defendants Sentenced"),color="darkorange") +
+  geom_text(aes(x = as.Date("2017-09-01"), y = 1.30, label = "Average \n Case Length"),color="chocolate4") +
+  geom_hline(yintercept = 1, color = "chocolate2", linetype="dashed")
+
+ggsave(here("data_output","cases_sentenced_avg_case_length.pdf"),plot1,device="pdf")
+plot1
+```
+
+
+ADD  COMMENTARY
+
+
+Okay - we want to dig into this trend more. We see that total number of defendants is first increasing then falling, while total number of days spent on cases has stayed the same or increased (certainly increased since 2011). Average case length has been increasing almost consistently throughout this time period. This is curious for a few reasons. If the rise in number of defendants from 2011 to 2014 is overloading the system and causing long case lengths, increasing average case length from 2011 to 2014, we might expect to see that when the number of defendants goes down, total case length also goes down. However, we don't observe this. From 2011 to 2014, average case length seems to be increasing, perhaps because total case days are growing at a faster rate than number of defendants (which makes sense because there might not be a linear relationship between number of defendants and total lag in the system). From 2014 to 2017, there seems to be two trends that are keeping average case length increasing: decreasing number of defendants AND increasing total number of days spent on cases. In other words, we're spending more days on fewer cases.
+
+One obvious place to start exploring these dual trends is by offense type: which offense types are driving the decline, and which offense types are driving the rise in total number of days. In order to do this, we have to do some exploration to understand what the main offense types are.  
+
+
+```{r warning=FALSE, message = FALSE}
+intake %<>% 
+  mutate(RECEIVED_DATE = as.Date(RECEIVED_DATE,'%m/%d/%Y')) %>% 
+  mutate(receive_month = round_date(RECEIVED_DATE, "month")) %>% 
+  mutate(Offense_Category_broad = case_when(
+    grepl("Retail Theft", Offense_Category) ~ "Retail Theft",
+    grepl("Burglary", Offense_Category) ~ "Burglary",
+    grepl("Homicide", Offense_Category) ~ "Homicide",
+    grepl("Robbery", Offense_Category) ~ "Robbery",
+    grepl("Battery", Offense_Category) ~ "Battery",
+    grepl("DUI", Offense_Category) ~ "DUI",
+    grepl("UUW", Offense_Category) ~ "Unlawful Use of Weapon",
+    Offense_Category == "Theft" ~ "Theft",
+    Offense_Category == "Narcotics" ~ "Narcotics",
+    Offense_Category == "Sex Crimes" ~ "Sex Crimes",
+    Offense_Category == "Possession of Stolen Motor Vehicle" ~ "MVT",
+    Offense_Category == "Driving With Suspended Or Revoked License" ~ "Driving With \n Revoked License",
+    TRUE ~ "Other"    
+  )) 
+
+intake_initiation <- inner_join(intake,initiation, by = "CASE_PARTICIPANT_ID")
+
+```
+
+```{r warning=FALSE, message = FALSE}
+intake_count <- intake_initiation %>% 
+  mutate(year = round_date(receive_month,"year")) %>% 
+  filter(year < "2018-01-01" & year > "2011-01-01") %>% 
+  group_by(Offense_Category_broad) %>% 
+  summarise(felonies = n_distinct(CASE_PARTICIPANT_ID)) %>% 
+  mutate(pct = round(felonies / sum(felonies),4)) 
+  
+
+plot2<- intake_count %>% 
+  ggplot(aes(x=reorder(Offense_Category_broad,-pct), y = pct)) +
+  geom_point(size=3, color = "chocolate4") +
+  geom_segment(aes(x=Offense_Category_broad,
+                  xend=Offense_Category_broad,
+                  y = 0,
+                  yend = pct)) +
+  coord_flip() +
+  scale_y_continuous(labels = scales::percent, limits = c(0.0,.45),breaks = seq(0,.45,.05)) +
+  scale_x_discrete(position = "top") +
+  theme_minimal() +
+  #theme(axis.title.y=element_blank(),
+  #      axis.text.y=element_blank(),
+  #      axis.ticks.y=element_blank()) +
+  theme(panel.grid.minor = element_blank()) +
+labs(
+    title = "Breakdown of Offense Types That Result in A Felony Filing",
+    subtitle = "Felonies from 2011 to 2018",
+    y="Proportion of Offenses",
+    x = "",
+    caption = "Source: Cook County State Attorney's Office Data Portal - Intake and Initiations"
+  ) 
+  # geom_text(aes(x = "MVT", y = .05, label = "Motor Vehicle Theft"),color="black",size=3.5) +
+  # geom_text(aes(x = "Homicide", y = .1, label = "Homicide"),color="black",size=3.5) +
+  # 
+  # geom_text(aes(x = "Theft", y = .2, label = "Theft"),color="black",size=3.5) +
+  # geom_text(aes(x = "Sex Crimes", y = .2, label = "Sex Crimes"),color="black",size=3.5) +
+  # 
+  # geom_text(aes(x = "Robbery", y = .08, label = "Robbery"),color="black",size=3.5) +
+  # geom_text(aes(x = "Driving With Revoked License", y = .08, label = "Driving With Revoked License"),color="black",size=3.5) +
+  # 
+  # geom_text(aes(x = "Battery", y = .04, label = "Battery"),color="black",size=3.5) +
+  # geom_text(aes(x = "Burglary", y = .04, label = "Burglary"),color="black",size=3.5) +
+  # geom_text(aes(x = "DUI", y = .04, label = "DUI"),color="black",size=3.5) +
+  # geom_text(aes(x = "Unlawful Use of Weapon", y = .04, label = "Unlawful Use of Weapon"),color="black",size=3.5) +
+  # geom_text(aes(x = "Retail Theft", y = .04, label = "Retail Theft"),color="black",size=3.5) +
+  # geom_text(aes(x = "Other", y = .04, label = "Other"),color="black",size=3.5) +
+  # geom_text(aes(x = "Narcotics", y = .04, label = "Narcotics"),color="black",size=3.5) 
+  
+
+ggsave(here("data_output","breakdown_offense_type.pdf"),plot2,device="pdf")
+plot2
+
+```
+
+
+
+```{r warning=FALSE, message = FALSE}
+# Next, we construct the graphs to figure out if if any particular types of
+# felonies are causing the increase or decrease in total defendants sentenced
+
+# For this, need to merge intake, initiation, and sentencing data, clean offenses category,
+# and construct variables for part of the process
+
+intake_initiation_fel_by_offense <- intake_initiation %>% 
+  group_by(receive_month, Offense_Category_broad) %>% 
+  summarise(felonies = n_distinct(CASE_PARTICIPANT_ID)) %>% 
+  filter(receive_month > "2011-01-01" & receive_month < "2018-01-01") 
+  
+intake_initiation_2011 <- intake_initiation_fel_by_offense %>% 
+  mutate(receive_month2 = case_when(
+    receive_month=="2011-02-01" ~ "Start",
+    receive_month=="2017-12-01" ~ "End",
+    TRUE ~ "")) %>% 
+  group_by(receive_month2) %>% 
+  select(-receive_month) %>% 
+  filter(receive_month2 == "Start" | receive_month2 == "End") %>% 
+  spread(receive_month2,felonies) %>% 
+  mutate(change = abs((End-Start)/Start))
+
+int_init_by_off_pct <- left_join(intake_initiation_fel_by_offense, intake_initiation_2011, by="Offense_Category_broad")
+
+int_init_by_off_pct$Offense_Category_broad <- factor(int_init_by_off_pct$Offense_Category_broad, levels = c(
+  "Retail Theft", "DUI", "Narcotics","Unlawful Use of Weapon", "Battery","Homicide","MVT",
+  "Driving With Revoked License", "Burglary", "Other", "Theft", "Robbery", "Sex Crimes"),ordered=TRUE)
+                                                     
+plot3 <- int_init_by_off_pct %>% 
+  filter(change > 0.35) %>% 
+  ggplot(aes(y=felonies, x=receive_month, color=Offense_Category_broad))  +
+  geom_point(size=0.2) +
+  geom_smooth(size=0.1) +
+  facet_wrap(~Offense_Category_broad, scales = "free") +
+  scale_color_manual(values=c("blue","blue","blue", 
+                              "chocolate3", "chocolate3", "chocolate3")) +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  theme(strip.text = element_text(size = rel(0.7))) +
+  labs(
+    title = "DUIs, narcotics, and retail theft cases drive decrease in number of cases",
+    subtitle = "Number of cases per month by offense type from 2011 to 2018",
+    caption = "Source: Cook County State Attorney's Office Data Portal: Initiations and Intake",
+    x = "Year",
+    y = "Number of Cases Per Month"
+  )
+ggsave(here("data_output","num_cases_by_offense.pdf"),plot3,device = "pdf")
+plot3
+```
+
+
+ADD COMMENTARY
+
+```{r warning=FALSE, message = FALSE}
+# Next, want to merge intake/initiation data with sentences data to look at the
+# distribution of case length by offense type, pre 2016 and post 2016
+
+int_ini_sent <- inner_join(intake_initiation,sentence,by="CASE_PARTICIPANT_ID") 
+
+# Want to calculate avg length per case (first collapse by Case participant) and then avg length
+# per offense type, broken down into 2 time periods
+
+lengths_by_offense <- int_ini_sent %>% 
+  group_by(sentence_month, Offense_Category_broad, CASE_PARTICIPANT_ID) %>% 
+  filter(case_length_total < 2000 ) %>% 
+  summarise(case_length_p = mean(case_length_total, na.rm = TRUE)) %>% 
+  group_by(sentence_month, Offense_Category_broad) %>% 
+  summarise(total_case_length = sum(case_length_p, na.rm = TRUE)) %>% 
+  filter(sentence_month > "2011-01-01" & sentence_month < "2018-01-01")
+
+lengths_by_offense_2016 <- int_ini_sent %>% 
+  filter(case_length_total < 2000 & case_length_total >0) %>% 
+  mutate(after_2016 = ifelse(sentence_month > "2016-01-01","after","before")) %>% 
+  group_by(after_2016, Offense_Category_broad, CASE_PARTICIPANT_ID) %>% 
+  summarise(case_length_p = mean(case_length_total, na.rm = TRUE))
+
+lengths_by_off_change <-lengths_by_offense_2016 %>% 
+  group_by(after_2016, Offense_Category_broad) %>% 
+  summarise(mean_length = mean(case_length_p)) %>% 
+  spread(after_2016, mean_length) %>% 
+  mutate(change = abs((after-before)/before))
+  
+lengths_by_offense_2016$after_2016 <- factor(lengths_by_offense_2016$after_2016, labels = c("Before 2016", "After 2016"), ordered = TRUE)
+
+
+plot4<-lengths_by_offense_2016 %>% 
+  filter(Offense_Category_broad %in% c("Retail Theft", "Narcotics", "Homicide","DUI","Unlawful Use of Weapon","Sex Crimes")) %>% 
+  ggplot(aes(x=case_length_p,fill=after_2016)) +
+  geom_density(alpha=0.3) +
+  stat_density(aes(x=case_length_p,fill=after_2016),geom="line",position = "identity") +
+  facet_wrap(~Offense_Category_broad,ncol=2) +
+  theme_minimal() +
+  theme(panel.grid.minor = element_blank()) +
+  labs(
+    title = "Average case lengths increasing across offense types, even as retail theft and narcotics cases decrease",
+    subtitle = "Case lengths by offense type from 2011 to 2018",
+    caption = "Source: Cook County State Attorney's Office Data Portal: Initiations, Intake, and Sentences",
+    x = "Length of Case in Days",
+    y = "Density",
+    fill = ""
+  )
+
+ggsave(here("data_output","case_length_offense_type.pdf"),plot4,device="pdf")
+plot4
+```
+
+
+```{r warning=FALSE, message = FALSE}
+judge_count <- int_ini_sent %>% 
+  filter(COURT_NAME == "District 1 - Chicago") %>% 
+  filter(Offense_Category_broad %in% c("Homicide", "Sex Crimes", "DUI", "Retail Theft", "Narcotics")) %>% 
+  filter(SENTENCE_JUDGE != "") %>% 
+  group_by(SENTENCE_JUDGE) %>% 
+  summarise(total_sentences = n_distinct(CASE_PARTICIPANT_ID)) %>% 
+  filter(total_sentences > 900)
+
+length_by_judge <- left_join(judge_count, int_ini_sent,by="SENTENCE_JUDGE") %>% 
+  filter(Offense_Category_broad %in% c("Homicide", "Sex Crimes", "DUI", "Retail Theft", "Narcotics")) %>%
+  filter(case_length_total < 2000) %>% 
+  group_by(SENTENCE_JUDGE, Offense_Category_broad, CASE_PARTICIPANT_ID) %>%
+  summarise(case_length_p = mean(case_length_total, na.rm = TRUE)) %>%
+  group_by(SENTENCE_JUDGE,Offense_Category_broad) %>%
+  summarise(avg_case_length =  mean(case_length_p, na.rm = TRUE),
+            total_cases = n_distinct(CASE_PARTICIPANT_ID)
+            ) 
+
+length_by_judge_max <- left_join(judge_count, int_ini_sent,by="SENTENCE_JUDGE") %>% 
+  filter(Offense_Category_broad %in% c("Homicide", "Sex Crimes", "DUI", "Retail Theft", "Narcotics")) %>% 
+  filter(case_length_total < 2000) %>% 
+  group_by(SENTENCE_JUDGE, Offense_Category_broad,CASE_PARTICIPANT_ID) %>%
+  summarise(case_length_p = mean(case_length_total, na.rm = TRUE)) %>%
+  group_by(SENTENCE_JUDGE, Offense_Category_broad) %>%
+  summarise(mean_length =  mean(case_length_p, na.rm = TRUE)) %>% 
+  group_by(SENTENCE_JUDGE) %>%
+  summarise(sum_avg_length =  sum(mean_length, na.rm = TRUE)) 
+    
+length_by_judge_w_max <- left_join(length_by_judge, length_by_judge_max, by = "SENTENCE_JUDGE")
+
+plot5<-length_by_judge_w_max %>% 
+  ggplot(aes(x=reorder(SENTENCE_JUDGE, sum_avg_length), y=avg_case_length))+
+  geom_bar(aes(fill=Offense_Category_broad),stat = "identity") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+ggsave(here("data_output","case_length_by_judge.pdf"),plot5,device="pdf")
+plot5
+```
