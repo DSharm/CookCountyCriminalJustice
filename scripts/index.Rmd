@@ -148,8 +148,8 @@ plot2<- intake_count %>%
   theme(panel.grid.minor = element_blank()) +
 labs(
     title = "Narcotics, Retail Theft, DUIs, and Unlawful Use of Weapon \n Make Up 60% of All Offenses Sentenced",
-    subtitle = "Felonies Sentenced from 2011 to 2017",
-    y="Proportion of Offenses Sentenced",
+    subtitle = "Breakdown of Felonies Sentenced from 2011 to 2017 By Offense Type",
+    y="Proportion of All Offenses Sentenced",
     x = "",
     caption = "Source: Cook County State Attorney's Office Data Portal - Intake, Initiations, and Sentences"
   ) 
@@ -204,7 +204,7 @@ plot3 <- int_init_by_off_pct %>%
   theme(strip.text = element_text(size = rel(0.7))) +
   labs(
     title = "DUIs, Narcotics, and Retail Theft Cases Drive Decrease in \n Number of Cases Sentenced",
-    subtitle = "Number of cases sentenced per month by offense type from 2012 to 2017",
+    subtitle = "Number of Cases Sentenced Per Month by Offense Type from 2012 to 2017",
     caption = "Source: Cook County State Attorney's Office Data Portal - Initiations, Intake, and Sentences",
     x = "Year",
     y = "Number of Cases Per Month"
@@ -248,9 +248,9 @@ plot4<-lengths_by_offense_2016 %>%
   theme(panel.grid.minor = element_blank()) +
   labs(
     title = "Average case lengths increasing across offense types, \n even as retail theft and narcotics cases decrease",
-    subtitle = "Case lengths by offense type from 2011 to 2018",
+    subtitle = "Distribution of Case Lengths by Offense Type from 2011 to 2018",
     caption = "Source: Cook County State Attorney's Office Data Portal - Initiations, Intake, and Sentences",
-    x = "Length of Case in Days",
+    x = "Length of Case (Days)",
     y = "Density",
     fill = ""
   ) + 
@@ -285,15 +285,15 @@ judge_count %>%
                            "District 6 - Markham")) %>% 
   filter(total_sentences > 100 ) %>% 
   #ggplot(aes(x=total_sentences/1000, y=total_case_length/100000)) +
-  ggplot(aes(x=total_sentences, y=total_case_length/1000)) +
+  ggplot(aes(x=total_sentences, y=total_case_length/100000)) +
   geom_jitter(aes(size=avg_case_length,color=COURT_NAME),alpha=0.5, position = "jitter") +
   theme_minimal() +
   scale_y_log10() +
   labs(
-    title="Delays in the sentencing not uniformly distributed across judges and districts",
-    x = "Total Cases Sentenced",
-    y = "Total Number of Days Spent on Cases \n (Thousands of Days)",
-    subtitle="Judges from four largest districts sentencing homicides, sex crimes, DUIs, retail thefts, \n narcotics, and unlawful use of weapon cases",
+    title="Lags in Sentencing Not Uniformly Distributed Across Judges and Districts",
+    x = "Total Cases Sentenced By Judge",
+    y = "Total Number of Days Spent on Cases By Judge \n (Hundreds of Thousands of Days)",
+    subtitle="Judges From Four Largest Districts Sentencing Homicides, Sex Crimes, DUIs, Retail Thefts, \n Narcotics, and Unlawful Use of Weapon Cases",
     color = "Circuit Court District",
     size = "Average Case \n Length (Days)",
     caption = "Source: Cook County State Attorney's Office Data Portal - Initiations, Intake, and Sentences"
