@@ -24,7 +24,7 @@ Cook County has been criticized of having excessive lags in the process from arr
 I start by looking at the Sentences data from the SAO to see how the average length of case (from arrest to sentencing) has changed from 2011 to 2018. In addition to the average case length, I plot total number of defendants that are sentenced and the total number of days spent on cases in the same time period. All three are plotted as percentage of the February 2011 value.
 
 
-```{r warning=FALSE, message = FALSE}
+```{r warning=FALSE, message = FALSE, fig.align='center'}
 # Read in the data
 intake <- read.csv(here("data_source","SAO Data","Intake.csv"),stringsAsFactors = FALSE) 
 initiation <- read.csv(here("data_source","SAO Data","Initiation.csv"),stringsAsFactors = FALSE) 
@@ -96,7 +96,7 @@ Average case length increases consistently from 2011 to 2017. Until approximatel
 
 To explain this trend further, I turn to types of offenses. I want to understand which offense types are driving the decline in number of defendants, as well as which offense types are driving the rise in total number of days spent. In order to do this, I first look at the breakdown of offense types for all cases sentenced from 2011 to 2017.
 
-```{r warning=FALSE, message = FALSE}
+```{r warning=FALSE, message = FALSE,fig.align='center'}
 intake %<>% 
   mutate(RECEIVED_DATE = as.Date(RECEIVED_DATE,'%m/%d/%Y')) %>% 
   mutate(receive_month = round_date(RECEIVED_DATE, "month")) %>% 
@@ -165,7 +165,7 @@ Narcotics, at approximately 30\%, make up the largest portion of all offenses se
 
 Next, I want to look at which of these offenses are, over time, contributing to the trend of decreasing number of cases we saw in the first graph. 
 
-```{r warning=FALSE, message = FALSE}
+```{r warning=FALSE, message = FALSE,fig.align='center'}
 # Next, we construct the graphs to figure out if if any particular types of
 # felonies are causing the increase or decrease in total defendants sentenced
 
@@ -220,7 +220,7 @@ From the above graph, we see that retail theft, DUIs and narcotics are driving t
 
 Having better understood which offense types are driving the decline in number of cases, I turn to looking at which offense types are driving the increase in case length.
 
-```{r warning=FALSE, message = FALSE}
+```{r warning=FALSE, message = FALSE,fig.align='center',fig.width=8, fig.height=8}
 
 # Want to calculate avg length per case (first collapse by Case participant) and then avg length
 # per offense type, broken down into 2 time periods (before and after 2016)
@@ -265,7 +265,7 @@ For the figure above, I choose 2016 as the cut off since there were a number of 
 The distribution of case lengths shifts right across all offense types, though it is not clear why. One explanation is that this is a purely mechanical effect - since "lower level" crimes are falling, the crimes left to prosecute are crimes that naturally take longer to prosecute, and this shifts the distribution. However, this explanation does not fully explain why the total number of days spent on cases is $\textit{increasing}$ because there should still be a mechanical decline in time spent if fewer cases are being prosecuted. A second explanation is that there is something about the changes in 2016 causing this increase in case length - new State's Attorneys often comes in with a new set of priorities and procedures, and those could be causing lags.
 
 
-```{r warning=FALSE, message = FALSE}
+```{r warning=FALSE, message = FALSE,fig.align='center'}
 # I want to see if there's any interesting variation in case length by District or Judge
 
 judge_count <- int_ini_sent %>% 
