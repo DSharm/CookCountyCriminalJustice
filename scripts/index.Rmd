@@ -11,7 +11,7 @@ output:
 ```{r warning=FALSE , message=FALSE, include=FALSE}
 # load necessary packages 
 libs <- c("tidyverse", "stringr", "readr", "dplyr", "ggplot2", "readstata13","foreign",
-          "magrittr","lubridate","here","ggrepel")
+          "magrittr","lubridate","here","ggrepel","treemapify")
 lapply(libs, library, character.only=TRUE)
 
 
@@ -236,7 +236,7 @@ lengths_by_off_change <-lengths_by_offense_2016 %>%
   spread(after_2016, mean_length) %>% 
   mutate(change = abs((after-before)/before))
   
-lengths_by_offense_2016$after_2016 <- factor(lengths_by_offense_2016$after_2016, labels = c("Before 2016", "After 2016"), ordered = TRUE)
+lengths_by_offense_2016$after_2016 <- factor(lengths_by_offense_2016$after_2016, levels = c("before","after"), labels = c("Before 2016", "After 2016"), ordered = TRUE)
 
 plot4<-lengths_by_offense_2016 %>% 
   filter(Offense_Category_broad %in% c("Retail Theft", "Narcotics", "Homicide","DUI","Unlawful Use of Weapon","Sex Crimes")) %>% 
@@ -254,7 +254,7 @@ plot4<-lengths_by_offense_2016 %>%
     y = "Density",
     fill = ""
   ) + 
-  scale_fill_manual(values = c("blue","chocolate4"))
+  scale_fill_manual(values = c("chocolate4","blue"))
 
 ggsave(here("data_output","case_length_offense_type.pdf"),plot4,device="pdf",width=8,height=5)
 plot4
@@ -305,6 +305,51 @@ judge_count %>%
 Beyond offense types, I am also interested in seeing if the delays in sentencing cases are uniformly distributed across judges and districts. The figure above suggests that they are not. For the same total number of cases sentenced, we see fairly large variation in the total number of days spent on all cases by judges. For example, for judges who sentenced approximately 500 cases, some judges - particularly in courts serving the southern suburbs (District 6) - spent far more days than other judges. Judges from Markham seem to consistently spend more days on cases than their counterparts in Chicago, Skokie, and Bridgeview. This could be signal that more resources are needed in Markham, perhaps, but more work is needed to understand these trends.
 
 
+```{r}
 
+bond_court_disp <- read.csv(here("data_source","bond-court-dispositions","data","cbc_disposition_stats.csv"),stringsAsFactors = FALSE)
+
+reform <- "2017-09-18"
+
+bond_court_disp %<>%
+  mutate(date = as.Date(date,'%Y-%m-%d' )) %>% 
+  mutate(sum_cases = Nolle.Pros + No.Bail + Bond.to.Stand + I.Bonds + EMI + D.Bonds + C.Bonds)
+
+identical(bond_court_disp$sum_cases,bond_court_disp$TOTAL.CASES)
+summary(bond_court_disp$sum_cases)
+summary(bond_court_disp$TOTAL.CASES)
+not_equal <- bond_court_disp[which(!identical(bond_court_disp$sum_cases,bond_court_disp$TOTAL.CASES)),]
+
+# Need to collapse this data into before and after reform to see how the pct of different bond types have changed
+bond_court_disp %<>%
+  mutate(after_reform = ifelse(date>=reform,"after reform","before reform"))
+
+bond_court_disp_sum <- bond_court_disp %>% 
+  group_by(after_reform) %>% 
+  summarise(sum_nolle = sum(Nolle.Pros), sum_nobail = sum(No.Bail), sum_bts = sum(Bond.to.Stand),
+            sum_Ibonds = sum(I.Bonds), sum_emi = sum(EMI), sum_Dbonds = sum(D.Bonds), sum_Cbonds = sum(C.Bonds)) %>% 
+  gather(type_bond,cases,sum_nolle:sum_Cbonds) %>% 
+  mutate(pct_bond = cases / sum(cases))
+
+bond_court_disp_sum$after_reform <- factor(bond_court_disp_sum$after_reform, levels = c("before reform","after reform"),
+                                           labels = c("Before Reform", "After Reform"), ordered = TRUE)
+
+bond_court_disp_sum$type_bond <- factor(bond_court_disp_sum$type_bond, levels = c("sum_nolle","sum_nobail","sum_bts","sum_Ibonds",
+                                                                                  "sum_emi","sum_Dbonds","sum_Cbonds"),
+                                           labels = c("Nolle Pros","No Bail", "Bond to Stand", 
+                                                      "I-Bonds","EMI","D Bonds", "C Bonds"), ordered = TRUE)
+
+
+bond_court_disp_sum %>% 
+  ggplot(aes(area=pct_bond, label = type_bond, fill=type_bond)) +
+  geom_treemap() +
+  geom_treemap_text(fontface = "italic", colour = "white", place = "centre",
+                    grow = TRUE) +
+  facet_wrap(~after_reform)
+
+  
+
+
+```
 
 
