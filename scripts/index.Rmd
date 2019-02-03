@@ -11,10 +11,12 @@ output:
 ```{r warning=FALSE , message=FALSE, include=FALSE}
 # load necessary packages 
 libs <- c("tidyverse", "stringr", "readr", "dplyr", "ggplot2", "readstata13","foreign",
-          "magrittr","lubridate","here","ggrepel","treemapify")
+          "magrittr","lubridate","here","ggrepel","treemapify","packcircles", "ggalluvial","ggrepel",
+          "extrafont")
 lapply(libs, library, character.only=TRUE)
 
-
+loadfonts()
+source("theme.R")
 ```
 
 The Cook County State's Attorney's Office (SAO) is the second largest prosecutor's office in the United States. Tens of thousands of criminal cases are prosecuted every year by the Office, across 100 law enforcement jurisdictions and in service of over five million residents of Cook County. When she took office in December 2016, State's Attorney Kim Foxx announced a largely unprecedented commitment to improving the transparency of the SAO's work. Accordingly, in 2017 the SAO released a Baseline Data Report, along with de-identified data capturing snapshots of all cases that go through the SAO from arrest to sentencing. While some of the data goes as far back as the early 2000s, due to changes in the accuracy of storing and reporting the data, it is more reliable starting in 2011. 
@@ -72,21 +74,27 @@ plot1 <-
   ggplot(aes(x=sentence_month, y=pct_change, color=type_measure)) + 
   geom_point(size = 0.8) +
   geom_smooth(size=0.3) +
-  scale_color_manual(values=c("chocolate4","gray60","darkorange")) +
+  scale_color_manual(values=c("#99112C","#0B729A","#B2AB21")) +
   theme_classic() +
   theme(legend.position = "none") +
   scale_y_continuous(labels = scales::percent, limits = c(0.8 , 1.9)) +
   labs(
     subtitle = "Monthly Number of Defendants Sentenced, Total Days Spent on Cases, and Average Case \n Length as a Percent of February 2011 Value",
-    title = "Average Case Length Increases Even As Total Defendants \n Sentenced Decreases",
+    title = "Average Case Length Increases Even As Total Defendants Sentenced Decreases",
     y="",
     x = "Year",
     caption = "Source: Cook County State Attorney's Office Data Portal - Sentences"
   ) +
-  geom_text(aes(x = as.Date("2015-06-01"), y = 1.75, label = "Total Number of Days \n Spent on Cases"),color="gray60") +
-  geom_text(aes(x = as.Date("2015-05-01"), y = .90, label = "Total Number of \n Defendants Sentenced"),color="darkorange") +
-  geom_text(aes(x = as.Date("2017-09-01"), y = 1.30, label = "Average \n Case Length"),color="chocolate4") +
-  geom_hline(yintercept = 1, color = "chocolate2", linetype="dashed")
+  geom_text(aes(x = as.Date("2015-06-01"), y = 1.75, label = "Total Number of Days \n Spent on Cases"),color="#0B729A",family="Tahoma",face="plain",size=3) +
+  geom_text(aes(x = as.Date("2015-05-01"), y = .90, label = "Total Number of \n Defendants Sentenced"),color="#B2AB21",family="Tahoma",face="plain",size=3) +
+  geom_text(aes(x = as.Date("2017-09-01"), y = 1.30, label = "Average \n Case Length"),
+            color="#99112C",family="Tahoma",face="plain",size=3) +
+  geom_hline(yintercept = 1, color = "gray70", linetype="dashed") +
+  my_theme +
+  theme(plot.margin = margin(1,1,1,.1,"cm"),
+        panel.grid.major.y = element_line(color="#717175", size=0.25),
+        panel.grid.minor.y = element_line(color="#717175", size=0.25),
+        plot.title = element_text(family="Tahoma", face="bold", size=11))
 
 ggsave(here("data_output","cases_sentenced_avg_case_length.pdf"),plot1,device="pdf",width=8,height=5)
 plot1
@@ -96,7 +104,7 @@ Average case length increases consistently from 2011 to 2017. Until approximatel
 
 To explain this trend further, I turn to types of offenses. I want to understand which offense types are driving the decline in number of defendants, as well as which offense types are driving the rise in total number of days spent. In order to do this, I first look at the breakdown of offense types for all cases sentenced from 2011 to 2017.
 
-```{r warning=FALSE, message = FALSE,fig.align='center'}
+```{r warning=FALSE, message = FALSE,fig.align='center',fig.width=5}
 intake %<>% 
   mutate(RECEIVED_DATE = as.Date(RECEIVED_DATE,'%m/%d/%Y')) %>% 
   mutate(receive_month = round_date(RECEIVED_DATE, "month")) %>% 
@@ -108,7 +116,7 @@ intake %<>%
     grepl("Battery", Offense_Category) ~ "Battery",
     grepl("Assault", Offense_Category) ~ "Battery",
     grepl("DUI", Offense_Category) ~ "DUI",
-    grepl("UUW", Offense_Category) ~ "Unlawful Use of Weapon",
+    grepl("UUW", Offense_Category) ~ "Unlawful Use \n of Weapon",
     Offense_Category == "Theft" ~ "Theft",
     Offense_Category == "Narcotics" ~ "Narcotics",
     Offense_Category == "Sex Crimes" ~ "Sex Crimes",
@@ -129,32 +137,52 @@ intake_count <- int_ini_sent %>%
   filter(year < "2018-01-01" & year >= "2011-01-01") %>% 
   group_by(Offense_Category_broad) %>% 
   summarise(felonies = n_distinct(CASE_PARTICIPANT_ID)) %>% 
-  mutate(pct = round(felonies / sum(felonies),4)) 
-  
-plot2<- intake_count %>% 
-  ggplot(aes(x=reorder(Offense_Category_broad,-pct), y = pct)) +
-  geom_point(size=3, color = "chocolate4") +
-  geom_segment(aes(x=Offense_Category_broad,
-                  xend=Offense_Category_broad,
-                  y = 0,
-                  yend = pct)) +
-  coord_flip() +
-  scale_y_continuous(labels = scales::percent, limits = c(0.0,.45),breaks = seq(0,.45,.05)) +
-  scale_x_discrete(position = "top") +
-  theme_minimal() +
-  #theme(axis.title.y=element_blank(),
-  #      axis.text.y=element_blank(),
-  #      axis.ticks.y=element_blank()) +
-  theme(panel.grid.minor = element_blank()) +
-labs(
-    title = "Narcotics, Retail Theft, DUIs, and Unlawful Use of Weapon \n Make Up 60% of All Offenses Sentenced",
-    subtitle = "Breakdown of Felonies Sentenced from 2011 to 2017 By Offense Type",
-    y="Proportion of All Offenses Sentenced",
-    x = "",
-    caption = "Source: Cook County State Attorney's Office Data Portal - Intake, Initiations, and Sentences"
-  ) 
+  mutate(pct = round(felonies / sum(felonies),4)) %>% 
+  mutate(Percent = paste(round(pct*100),"%",sep="")) %>% 
+  mutate(Label = paste(Offense_Category_broad,Percent,sep = "\n"))
 
-ggsave(here("data_output","breakdown_offense_type.pdf"),plot2,device="pdf",width=8,height=5)
+```
+
+```{r warning=FALSE, message = FALSE,fig.align='center',fig.height=8,fig.width=5}
+  
+packing <- circleProgressiveLayout(intake_count$pct, sizetype='area')
+
+intake_count2 <- cbind(intake_count,packing)
+#plot(intake_count$radius, intake_count$pct)
+
+dat.gg <- circleLayoutVertices(packing, npoints=50)
+
+plot2 <-
+ggplot() +
+  geom_polygon(data = dat.gg, aes(x, y, group=id, fill=as.factor(id)), colour = "black", alpha = 0.6) +
+  geom_text(data = intake_count2, aes(x,y,size=pct,label=Label)) +
+  scale_size_continuous(range = c(1,4)) +
+  coord_fixed(ratio=1/1.5) +
+  labs(
+    title = "Narcotics, Retail Theft, DUIs, and Unlawful Use of \nWeapon Make Up 60% of All Offenses Sentenced",
+    subtitle = "Breakdown of Felonies Sentenced from 2011 to 2017 By Offense Type",
+    y="",
+    x = "",
+    caption = "Source: Cook County State Attorney's \nOffice Data Portal - Intake, Initiations, and Sentences"
+  ) + 
+  theme(legend.position="none") +
+  my_theme +
+  theme(plot.margin = margin(.5,.3,.5,.3,"cm"),
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        axis.text = element_blank()) +
+  scale_fill_manual(values = c("#095E7F","#12BDFF","#052F40",
+                               
+                               "#7F0E25","#10AAE5","#0B729A",
+                               
+                               "#A6122F","#B2AB21","#590A1A",
+                               
+                               "#1081E5","#052440","#128FFF",
+                               
+                               "#99112C"))
+                               
+
+#ggsave(here("data_output","breakdown_offense_type.pdf"),plot2,device="pdf",width=8,height=5)
 plot2
 
 ```
@@ -197,19 +225,22 @@ plot3 <- int_init_by_off_pct %>%
   geom_point(size=0.2) +
   geom_smooth(size=0.1) +
   facet_wrap(~Offense_Category_broad, scales = "free") +
-  scale_color_manual(values=c("blue","blue","blue", 
-                              "chocolate3", "chocolate3", "chocolate3")) +
-  theme_minimal() +
-  theme(legend.position = "none") +
-  theme(strip.text = element_text(size = rel(0.7))) +
+  scale_color_manual(values=c("#0B729A","#095E7F","#052F40", 
+                              "#99112C", "#E51942", "#A6122F")) +
   labs(
     title = "DUIs, Narcotics, and Retail Theft Cases Drive Decrease in \n Number of Cases Sentenced",
     subtitle = "Number of Cases Sentenced Per Month by Offense Type from 2012 to 2017",
     caption = "Source: Cook County State Attorney's Office Data Portal - Initiations, Intake, and Sentences",
     x = "Year",
-    y = "Number of Cases Per Month"
-  )
+    y = "Number of Cases Per Month") +
+  my_theme +
+  theme(legend.position = "none") +
+  theme(strip.text = element_text(size = rel(0.9),color="white")) +
+  theme(strip.background = element_rect(fill = "grey60"))
+  
+
 ggsave(here("data_output","num_cases_by_offense.pdf"),plot3,device = "pdf",width=8,height=5)
+
 plot3
 ```
 
@@ -239,13 +270,11 @@ lengths_by_off_change <-lengths_by_offense_2016 %>%
 lengths_by_offense_2016$after_2016 <- factor(lengths_by_offense_2016$after_2016, levels = c("before","after"), labels = c("Before 2016", "After 2016"), ordered = TRUE)
 
 plot4<-lengths_by_offense_2016 %>% 
-  filter(Offense_Category_broad %in% c("Retail Theft", "Narcotics", "Homicide","DUI","Unlawful Use of Weapon","Sex Crimes")) %>% 
+  filter(Offense_Category_broad %in% c("Retail Theft", "Narcotics", "Homicide","DUI","Unlawful Use \n of Weapon","Sex Crimes")) %>% 
   ggplot(aes(x=case_length_p,fill=after_2016)) +
   geom_density(alpha=0.3) +
   stat_density(aes(x=case_length_p,fill=after_2016),geom="line",position = "identity") +
   facet_wrap(~Offense_Category_broad,ncol=3) +
-  theme_minimal() +
-  theme(panel.grid.minor = element_blank()) +
   labs(
     title = "Average case lengths increasing across offense types, \n even as retail theft and narcotics cases decrease",
     subtitle = "Distribution of Case Lengths by Offense Type from 2011 to 2018",
@@ -254,7 +283,10 @@ plot4<-lengths_by_offense_2016 %>%
     y = "Density",
     fill = ""
   ) + 
-  scale_fill_manual(values = c("chocolate4","blue"))
+  scale_fill_manual(values = c("#99112C","#0B729A")) +
+  my_theme +
+  theme(strip.text = element_text(size = rel(1.2),color="white")) +
+  theme(strip.background = element_rect(fill = "grey60"))
 
 ggsave(here("data_output","case_length_offense_type.pdf"),plot4,device="pdf",width=8,height=5)
 plot4
@@ -265,7 +297,7 @@ For the figure above, I choose 2016 as the cut off since there were a number of 
 The distribution of case lengths shifts right across all offense types, though it is not clear why. One explanation is that this is a purely mechanical effect - since "lower level" crimes are falling, the crimes left to prosecute are crimes that naturally take longer to prosecute, and this shifts the distribution. However, this explanation does not fully explain why the total number of days spent on cases is $\textit{increasing}$ because there should still be a mechanical decline in time spent if fewer cases are being prosecuted. A second explanation is that there is something about the changes in 2016 causing this increase in case length - new State's Attorneys often comes in with a new set of priorities and procedures, and those could be causing lags.
 
 
-```{r warning=FALSE, message = FALSE,fig.align='center'}
+```{r warning=FALSE, message = FALSE,fig.align='center', fig.width=8}
 # I want to see if there's any interesting variation in case length by District or Judge
 
 judge_count <- int_ini_sent %>% 
@@ -284,29 +316,31 @@ judge_count %>%
   filter(COURT_NAME %in% c("District 1 - Chicago","District 2 - Skokie","District 5 - Bridgeview",
                            "District 6 - Markham")) %>% 
   filter(total_sentences > 100 ) %>% 
-  #ggplot(aes(x=total_sentences/1000, y=total_case_length/100000)) +
   ggplot(aes(x=total_sentences, y=total_case_length/100000)) +
   geom_jitter(aes(size=avg_case_length,color=COURT_NAME),alpha=0.5, position = "jitter") +
-  theme_minimal() +
   scale_y_log10() +
   labs(
     title="Lags in Sentencing Not Uniformly Distributed Across Judges and Districts",
     x = "Total Cases Sentenced By Judge",
-    y = "Total Number of Days Spent on Cases By Judge \n (Hundreds of Thousands of Days)",
+    y = "Log of Total Case-Days* Spent By Judge \n (Hundreds of Thousands of Days)",
     subtitle="Judges From Four Largest Districts Sentencing Homicides, Sex Crimes, DUIs, Retail Thefts, \n Narcotics, and Unlawful Use of Weapon Cases",
     color = "Circuit Court District",
     size = "Average Case \n Length (Days)",
-    caption = "Source: Cook County State Attorney's Office Data Portal - Initiations, Intake, and Sentences"
-  ) 
-
+    caption = "Source: Cook County State Attorney's Office \n Data Portal - Initiations, Intake, and Sentences \n
+    *Case-days is the sum of case lengths for all the cases the judge worked on, many of them concurrently.")  +
+  annotate("text", x = 400, y = 3.5, label = "Some text") +
+  annotate("segment", x = 400, xend = 450, y = 2.5, yend = 1.5,color="blue") + 
+  my_theme +
+  scale_color_manual(values = c("#99112C","#FF2E58","#B2AB21","#0B729A"))
+  
 
 ```
 
 Beyond offense types, I am also interested in seeing if the delays in sentencing cases are uniformly distributed across judges and districts. The figure above suggests that they are not. For the same total number of cases sentenced, we see fairly large variation in the total number of days spent on all cases by judges. For example, for judges who sentenced approximately 500 cases, some judges - particularly in courts serving the southern suburbs (District 6) - spent far more days than other judges. Judges from Markham seem to consistently spend more days on cases than their counterparts in Chicago, Skokie, and Bridgeview. This could be signal that more resources are needed in Markham, perhaps, but more work is needed to understand these trends.
 
 
-```{r}
-
+```{r warning=FALSE, message = FALSE, fig.align='center'}
+# Explore Bond Court Dispositions Data
 bond_court_disp <- read.csv(here("data_source","bond-court-dispositions","data","cbc_disposition_stats.csv"),stringsAsFactors = FALSE)
 
 reform <- "2017-09-18"
@@ -315,9 +349,9 @@ bond_court_disp %<>%
   mutate(date = as.Date(date,'%Y-%m-%d' )) %>% 
   mutate(sum_cases = Nolle.Pros + No.Bail + Bond.to.Stand + I.Bonds + EMI + D.Bonds + C.Bonds)
 
-identical(bond_court_disp$sum_cases,bond_court_disp$TOTAL.CASES)
-summary(bond_court_disp$sum_cases)
-summary(bond_court_disp$TOTAL.CASES)
+# identical(bond_court_disp$sum_cases,bond_court_disp$TOTAL.CASES)
+# summary(bond_court_disp$sum_cases)
+# summary(bond_court_disp$TOTAL.CASES)
 not_equal <- bond_court_disp[which(!identical(bond_court_disp$sum_cases,bond_court_disp$TOTAL.CASES)),]
 
 # Need to collapse this data into before and after reform to see how the pct of different bond types have changed
@@ -334,18 +368,34 @@ bond_court_disp_sum <- bond_court_disp %>%
 bond_court_disp_sum$after_reform <- factor(bond_court_disp_sum$after_reform, levels = c("before reform","after reform"),
                                            labels = c("Before Reform", "After Reform"), ordered = TRUE)
 
-bond_court_disp_sum$type_bond <- factor(bond_court_disp_sum$type_bond, levels = c("sum_nolle","sum_nobail","sum_bts","sum_Ibonds",
-                                                                                  "sum_emi","sum_Dbonds","sum_Cbonds"),
-                                           labels = c("Nolle Pros","No Bail", "Bond to Stand", 
-                                                      "I-Bonds","EMI","D Bonds", "C Bonds"), ordered = TRUE)
+bond_court_disp_sum$type_bond <- factor(bond_court_disp_sum$type_bond, 
+    levels = c("sum_nolle","sum_nobail","sum_bts","sum_Ibonds","sum_emi","sum_Dbonds","sum_Cbonds"),
+    labels = c("Nolle Pros","No Bail", "Bond to Stand","I-Bonds","EMI","D Bonds", "C Bonds"), ordered = TRUE)
 
-
+plot6 <- 
 bond_court_disp_sum %>% 
   ggplot(aes(area=pct_bond, label = type_bond, fill=type_bond)) +
   geom_treemap() +
-  geom_treemap_text(fontface = "italic", colour = "white", place = "centre",
-                    grow = TRUE) +
-  facet_wrap(~after_reform)
+  geom_treemap_text(colour = "white", place = "centre",
+                    family = "Tahoma", grow = TRUE) +
+  facet_wrap(~after_reform) +
+   labs(
+    title="Lags in Sentencing Not Uniformly Distributed Across Judges and Districts",
+    x = "Total Cases Sentenced By Judge",
+    y = "Log of Total Case-Days* Spent By Judge \n (Hundreds of Thousands of Days)",
+    subtitle="Judges From Four Largest Districts Sentencing Homicides, Sex Crimes, DUIs, Retail Thefts, \n Narcotics, and Unlawful Use of Weapon Cases",
+    color = "Circuit Court District",
+    size = "Average Case \n Length (Days)",
+    fill = "Type of Bond",
+    caption = "Source: Cook County State Attorney's Office \n Data Portal - Initiations, Intake, and Sentences \n
+    *Case-days is the sum of case lengths for all the cases the judge worked on, many of them concurrently.") +
+  my_theme +
+  scale_fill_manual(values=c("#FF2E58","#29424C", "#590A1A","#0B729A","#99112C", "#B2AB21","#12BDFF")) +
+  theme(strip.text = element_text(size = rel(1.2),color="white")) +
+  theme(strip.background = element_rect(fill = "grey60"))
+
+ggsave(here("data_output","bond_court_disp"),plot6,device="pdf",width=8,height=5)
+plot6
 
   
 
@@ -353,3 +403,89 @@ bond_court_disp_sum %>%
 ```
 
 
+ADD
+TEXT
+HERE
+
+```{r warning=FALSE, message = FALSE,fig.align='center',fig.height=8, fig.width=6}
+# Explore Bond Court Observation Data
+
+# bond_court_obs_PSA <- bond_court_obs %>% 
+#   count(PSA_Category)
+# bond_court_obs_judge <- bond_court_obs %>% 
+#   count(Judge)
+# bond_court_obs_bondtype <- bond_court_obs %>% 
+#   count(Bond_Type)
+# bond_court_obs_max_charge <- bond_court_obs %>% 
+#   count(Max_Charge)
+# bond_court_obs_SArec <- bond_court_obs %>% 
+#   count(SARec_I)
+
+# charges <- c("1 - traffic, non-DUI",  "2 - traffic, DUI", 
+#              "3 - drug possession (PCS)", "4 - drug sales (manufacture/delivery, PCS with intent)",
+#              "5 - gun possession (all UUW charges)", "6 - retail theft", 
+#              "7 - other property crimes (e.g. burglary, possession of a stolen motor vehicle)",
+#              "8 - robbery", "9 - aggravated battery (usually against a police officer)",
+#              "10 - murder", "11 - other miscellaneous crimes against a person")
+
+
+# Goal - make an alluvial chart that goes from max charge to SArec_I to bond type
+bond_court_obs <- read.csv(here("data_source","court-observation","aug_sept_oct_by_id.csv"),stringsAsFactors = FALSE)
+bond_court_obs %<>% 
+  separate(Date, into= c("day","date_temp","year"), sep = ",") %>% 
+  mutate(date_temp2 = trimws(paste(date_temp,year,sep = " "))) %>% 
+  mutate(date = as.Date(date_temp2, format = "%B %d %Y")) %>% 
+  select(-date_temp, -date_temp2, day, year) %>% 
+  mutate(after_reform = ifelse(date>=reform,"after reform","before reform")) %>% 
+  mutate(ind = 1) %>% 
+  mutate(Highest_Charge = case_when(
+    Max_Charge == 2 ~ "DUI",
+    Max_Charge == 3 | Max_Charge == 4 ~ "Narcotics",
+    Max_Charge == 5 ~ "Unlawful Use \nof Weapon",
+    Max_Charge == 7 |Max_Charge == 6 ~ "Property \nCrimes",
+    Max_Charge == 8 | Max_Charge == 11 | Max_Charge == 9 ~ "Person \nCrimes",
+    TRUE ~ ""
+  )) %>% 
+  mutate(Highest_Charge = ifelse(Highest_Charge == "",NA,Highest_Charge))
+
+bond_court_obs_collapse <- bond_court_obs %>% 
+  group_by(after_reform,SARec_I, Bond_Type, Highest_Charge) %>% 
+  summarise(freq = sum(ind)) %>% 
+  filter(!is.na(Bond_Type)) %>% 
+  filter(!is.na(Highest_Charge))
+
+# is_alluvia_form(as.data.frame(bond_court_obs_collapse), axes = 1:5, silent = TRUE) # TRUE
+
+bond_court_obs_collapse$after_reform <- factor(bond_court_obs_collapse$after_reform, levels = c("before reform","after reform"),labels = c("Before \nReform", "After \nReform"), ordered = TRUE)
+
+
+plot7<- 
+ggplot(as.data.frame(bond_court_obs_collapse),
+       aes(y = freq, axis2 = after_reform, axis1 = Highest_Charge, axis3 = Bond_Type)) +
+  geom_flow(aes(fill = Highest_Charge), width = 1/12)+
+  geom_stratum(width = 1/3.5, color = "grey60") +
+  scale_x_discrete(limits = c("Highest Charge", "After Reform","Bond Type" )) +
+  geom_text(stat = "stratum", label.strata = TRUE,size = 2.5, color = "#0B729A", family = "Tahoma") +
+  labs(
+    title="Lags in Sentencing Not Uniformly Distributed Across Judges and Districts",
+    y = "Frequency",
+    subtitle="Judges From Four Largest Districts Sentencing Homicides, Sex Crimes, DUIs, Retail Thefts, \n Narcotics, and Unlawful Use of Weapon Cases",
+    color = "Circuit Court District",
+    fill = "Highest Charge",
+    caption = "Source: Chicago Data Collaborative"
+  )  +
+  my_theme +
+  scale_fill_manual(values = c("#095E7F", "#B2AB21","#FF2E58","#99112C","#12BDFF"))
+  
+ggsave(here("data_output","case_length_offense_type.pdf"),plot7,device="pdf",width=8,height=5)
+plot7
+
+
+
+
+```
+
+
+ADD
+TEXT
+HERE
