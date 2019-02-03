@@ -407,7 +407,7 @@ ADD
 TEXT
 HERE
 
-```{r warning=FALSE, message = FALSE,fig.align='center',fig.height=8, fig.width=6}
+```{r warning=FALSE, message = FALSE,fig.align='center',fig.height=6, fig.width=6}
 # Explore Bond Court Observation Data
 
 # bond_court_obs_PSA <- bond_court_obs %>% 
