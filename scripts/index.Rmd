@@ -382,7 +382,7 @@ Beyond offense types, I am also interested in seeing if the delays in sentencing
 
 # Bail Reform in Cook County
 
-Another issue I’m interested in is bail reform. Recent media attention has shed light on the arbitrary decision-making in bond court and how it penalizes the poor. Many people are held simply because they cannot pay the bail amount, rather than being held because they pose a flight risk. The data on this topic is unfortunately sparse, and the SAO data also does not capture any information on this step of the process. 
+Recent media attention has shed light on the arbitrary decision-making in bond court and how it penalizes the poor. Many people are held pretrial simply because they cannot pay the bail amount, rather than being held because they pose a flight risk. The data on this topic is unfortunately sparse, and the SAO data also does not capture any information on this step of the process. 
 
 However, the subject received greater attention in Chicago when SA Kim Foxx announced in June 2017 that her office was pushing to reform this arbitrary system and recommending courts post no bail amount for defendants who don’t present a flight risk. Following that, the Governor signed into law a bill pushed by SA Foxx to this effect. External organizations, such as Chicago Appleseed, have written about this subject and compiled their own datasets, using bond court observations and data requested from the Bond Court through FOIA requests. Some of this data has been made public. While it is not as robust or rich as the SAO data, I explore both datasets below to see if there are signs of change or improvement since the bill was passed.
 
@@ -446,16 +446,23 @@ plot6
 
 ```
 
-Illinois law describes a number of options for pretrial release, supervision, and incarceration. These include:
+Illinois law has a number of options for pretrial release, supervision, and incarceration. These include:
+
 * I-Bonds: Individual recognizance bonds. When an accused person is given an I-Bond, the judge sets a dollar amount which must be paid if the accused fails to appear in court, but no payment is required prior to being released.
+
 * EMI: A person is allowed to be released into house arrest with electronic monitoring (EM)
+
 * D-Bond: Deposit Bond. If an accused receives a D-Bond, they must pay 10\% of the D-Bond amount in order to be released from jail.
+
 * C-Bond: Cash Bond. If an accused receives a C-Bond, they must pay the full amount of the Cash Bond to be released.
+
 * No Bail: the accused are ordered incarcerated until the duration of their case
+
 * Bond to stand: Judge upholds a bond type previously set by another judge
+
 * Nolle Pros: Judge decides to not proceed with the case
 
-We see that after the reform bill is passed in September 2017, usage of D-Bonds falls sharply while usage of I-Bonds increases. This is certainly an improvement, as fewer people are being made to pay a cash amount to ensure their release. However, usage of D-Bonds still remains fairly high, as does usage of No Bail. Additionally because of the aggregated nature of the Bond Court Dispositions data received through FOIA, any variation in bond decisions by offense type or judges is masked.
+We see that after the reform bill is passed in September 2017, usage of D-Bonds falls sharply while usage of I-Bonds increases. This is certainly an improvement, as fewer people have to pay a cash amount to ensure their release. However, usage of D-Bonds still remains fairly high, as does usage of No Bail. Additionally because of the aggregated nature of the Bond Court Dispositions data received through FOIA, any variation in bond decisions by offense type or judges is masked.
 
 To supplement this data, Chicago Appleseed also embarked on a court-watching initiative where volunteers were trained to sit in bond court and collect data from August 2017 to October 2017 (one month before and after the bill was passed). While limited in other ways, this data allows a more case-level insight into bond decision-making before and after the bill was passed.
 
