@@ -11,16 +11,18 @@ output:
 # load necessary packages 
 libs <- c("tidyverse", "stringr", "readr", "dplyr", "ggplot2", "readstata13","foreign",
           "magrittr","lubridate","here","ggrepel","treemapify","packcircles", "ggalluvial","ggrepel",
-          "extrafont","ggfittext")
+          "extrafont","ggfittext","cowplot","googleway","ggspatial","sf","rnaturalearth",
+          "rnaturalearthdata","rgeos")
+
 lapply(libs, library, character.only=TRUE)
 
-loadfonts()
-source("theme.R")
+# loadfonts()
+# source("theme.R")
 ```
 
 ```{r warning=FALSE , message=FALSE}
-my_theme <- theme(plot.background = element_rect(fill="#F8F8F8"),
-                  plot.title = element_text(family="Tahoma", face="bold", size=14),
+my_theme <- theme(plot.background = element_rect(fill="#F8F8F8", color = "white"),
+                  plot.title = element_text(family="Tahoma", face="bold", size=14, hjust=0),
                   plot.subtitle = element_text(family="Tahoma",size=10),
                   plot.margin=unit(c(1,1,1,1),"cm"),
                   plot.caption = element_text(family="Tahoma", size=8),
@@ -31,7 +33,7 @@ my_theme <- theme(plot.background = element_rect(fill="#F8F8F8"),
                   panel.grid.minor.x=element_blank(),
                   panel.grid.major.x=element_blank(),
                   
-                  legend.background = element_rect(fill="#F8F8F8"),
+                  legend.background = element_rect(fill="#F8F8F8", color = "#F8F8F8"),
                   legend.key = element_blank(),
                   legend.title = element_text(family="Tahoma", size=10),
                   legend.text = element_text(family="Tahoma", size=8),
@@ -58,11 +60,13 @@ I start by looking at the Sentences data from the SAO to see how the average len
 
 ```{r warning=FALSE, message = FALSE, fig.align='center'}
 # Read in the data
-intake <- read.csv(here("data_source","SAO Data","Intake.csv"),stringsAsFactors = FALSE) 
+intake <- read.csv(here('data_source','SAO Data','Intake.csv'),stringsAsFactors = FALSE) 
 initiation <- read.csv(here("data_source","SAO Data","Initiation.csv"),stringsAsFactors = FALSE) 
 sentence <- read.csv(here("data_source","SAO Data","Sentencing.csv"),stringsAsFactors = FALSE) 
 disposition <- read.csv(here("data_source","SAO Data","Dispositions.csv"),stringsAsFactors = FALSE) 
+```
 
+```{r warning=FALSE, message = FALSE, fig.align='center'}
 # Clean data
 
 # For graph 1, we look at sentences data only. 
@@ -73,11 +77,14 @@ disposition <- read.csv(here("data_source","SAO Data","Dispositions.csv"),string
 # to get an average case length per participant ID. This is because many defendants will have
 # multiple charges, and say each charge takes 8 days to go from arraignment to sentencing. Those
 # are the same 8 days, so we don't want to double count them.
+
+# Filtering only to primary charge throughout
 sentence %<>%
   mutate(SENTENCE_DATE = as.Date(SENTENCE_DATE,'%m/%d/%Y' )) %>% 
   mutate(ARREST_DATE = as.Date(ARREST_DATE,'%m/%d/%Y' )) %>% 
   mutate(case_length_total = unclass(difftime(SENTENCE_DATE,ARREST_DATE,units = "days"))) %>%
-  mutate(sentence_month = round_date(SENTENCE_DATE, "month"))  
+  mutate(sentence_month = round_date(SENTENCE_DATE, "month"))  %>% 
+  filter(PRIMARY_CHARGE == "true")
 
 case_length <- sentence %>% 
   group_by(sentence_month, CASE_PARTICIPANT_ID) %>% 
@@ -162,6 +169,9 @@ intake_other <- intake %>%
   filter(Offense_Category_broad == "Other (e.g. Forgery, \n Identity Theft)")  %>% 
   count(Offense_Category)
 
+initiation %<>%
+  filter(PRIMARY_CHARGE=="true")
+
 intake_initiation <- inner_join(intake,initiation, by = "CASE_PARTICIPANT_ID")
 int_ini_sent <- inner_join(intake_initiation,sentence,by="CASE_PARTICIPANT_ID") 
 
@@ -204,7 +214,8 @@ ggplot() +
   theme(plot.margin = margin(.5,.3,.5,.3,"cm"),
         panel.grid.major.y = element_blank(),
         panel.grid.minor.y = element_blank(),
-        axis.text = element_blank()) +
+        axis.text = element_blank(),
+        axis.line = element_blank()) +
   scale_fill_manual(values = c("#095E7F","#12BDFF","#052F40",
                                "#7F0E25","#10AAE5","#0B729A",
                                "#A6122F","#B2AB21","#590A1A",
@@ -254,7 +265,8 @@ int_init_by_off_pct$Offense_Category_broad <- factor(int_init_by_off_pct$Offense
 ```{r warning=FALSE, message = FALSE,fig.align='center'}
 
 plot3 <- int_init_by_off_pct %>% 
-  filter(change > 0.66) %>% 
+  filter(Offense_Category_broad %in% c("Retail Theft", "DUI", "Narcotics","Robbery",
+                                       "Sex Crimes","Homicide")) %>% 
   ggplot(aes(y=felonies, x=receive_month, color=Offense_Category_broad))  +
   geom_point(size=0.2,alpha=0.8) +
   geom_smooth(size=0.1) +
@@ -360,7 +372,7 @@ judge_count %>%
   geom_jitter(aes(size=avg_case_length,color=COURT_NAME),alpha=0.5, position = "jitter") +
   scale_y_log10() +
   labs(
-    title="Judges in Chicago Sentence More Cases In Fewer Days While Judges \nin Markham Are Spending Much Longer On Fewer Cases",
+    title="Judges in Chicago Sentence More Cases In Fewer Days While Judges \nin Markham Are Spending Longer On Fewer Cases",
     x = "Total Cases Sentenced By Judge",
     y = "Log of Total Case-Days* Spent By Judge \n (Hundreds of Thousands of Days)",
     subtitle="Judges From Four Largest Districts Sentencing Homicides, Sex Crimes, DUIs, \nRetail Thefts, Narcotics, and Unlawful Use of Weapon Cases",
@@ -368,8 +380,8 @@ judge_count %>%
     size = "Average Case \n Length (Days)",
     caption = "Source: Cook County State Attorney's Office \n Data Portal - Initiations, Intake, and Sentences \n
     *Case-days is the sum of case lengths for all the cases the judge worked on, many of them concurrently.")  +
-  annotate("text", x = 1030, y = 0.55, family = "Tahoma", size=2.5, hjust=0, label = "This Markham judge spent a little under 200,000 case-days\n (not consecutive days, since many cases are concurrent)\n on under 500 cases, while their counterparts in other districts\n spent far fewer case-days on the same number of cases.") +
-  annotate("segment", x = 400, xend = 1000, y = 1.35, yend = 0.7,color="black", linetype="dashed") + 
+  annotate("text", x = 680, y = 0.58, family = "Tahoma", size=2.5, hjust=0, label = "This Markham judge spent a little under 100,000 case-days\n (not consecutive days, since many cases are concurrent)\n on under 400 cases, while their counterparts in other districts\n spent far fewer case-days on the same number of cases.") +
+  annotate("segment", x = 280, xend = 650, y = 0.83, yend = 0.7,color="black", linetype="dashed") + 
   my_theme +
   scale_color_manual(values = c("#99112C","#FF2E58","#B2AB21","#0B729A"))
   
@@ -380,13 +392,367 @@ plot5
 
 Beyond offense types, I am also interested in seeing if the delays in sentencing cases are uniformly distributed across judges and districts. The figure above suggests that they are not. For the same total number of cases sentenced, we see fairly large variation in the total number of days spent on all cases by judges. For example, for judges who sentenced approximately 500 cases, some judges - particularly in courts serving the southern suburbs (District 6) - spent far more days than other judges. Judges from Markham seem to consistently spend more days on cases than their counterparts in Chicago, Skokie, and Bridgeview. This could be signal that more resources are needed in Markham, perhaps, but more work is needed to understand these trends.
 
+
+
+
+```{r, warning=FALSE, message = FALSE,fig.align='center', results='hide', fig.keep='all'}
+municipality <- st_read(here('data_source','Municipality','Municipality.shp'))
+
+municip_only_cities <- municipality %>% 
+  #filter(!is.na(MUNICIPALI)) %>% 
+  mutate(municip = trimws(toupper(MUNICIPALI)))
+
+# Group municipalities in Chicago into Circuit Court Districts (which match the division from Graph 5 above)
+municip_only_cities <- municip_only_cities %>% 
+  mutate(district = case_when(
+    municip == "ROLLING MEADOWS" ~ 3,
+    municip == "SOUTH BARRINGTON" ~ 3,
+    municip == "BARRINGTON" ~ 3,
+    municip == "BARRINGTON HILLS" ~ 3,
+    municip == "EAST DUNDEE" ~ 3,
+    municip == "HOFFMAN ESTATES" ~ 3,
+    municip == "SCHAUMBURG" ~ 3,
+    municip == "STREAMWOOD" ~ 3,
+    municip == "BARTLETT" ~ 3,
+    municip == "PROSPECT HEIGHTS" ~ 3,
+    municip == "ARLINGTON HEIGHTS" ~ 3,
+    municip == "WHEELING" ~ 3,
+    municip == "DEER PARK" ~ 3,
+    municip == "MOUNT PROSPECT" ~ 3,
+    municip == "BUFFALO GROVE" ~ 3,
+    municip == "ELGIN" ~ 3,
+    municip == "HANOVER PARK" ~ 3,
+    municip == "ROSELLE" ~ 3,
+    municip == "ELK GROVE VILLAGE" ~ 3,
+    municip == "PALATINE" ~ 3,
+    municip == "INVERNESS" ~ 3,
+    municip == "ROSEMONT" ~ 3,
+    municip == "HARWOOD HEIGHTS" ~ 3,
+    municip == "SCHILLER PARK" ~ 3,
+    municip == "NORRIDGE" ~ 3,
+    
+    municip == "DEERFIELD" ~ 2,
+    municip == "NORTHBROOK" ~ 2,
+    municip == "NORTHFIELD" ~ 2,
+    municip == "GLENCOE" ~ 2,
+    municip == "GLENVIEW" ~ 2,
+    municip == "DES PLAINES" ~ 2,
+    municip == "PARK RIDGE" ~ 2,
+    municip == "SKOKIE" ~ 2,
+    municip == "EVANSTON" ~ 2,
+    municip == "PARK RIDGE" ~ 2,
+    municip == "MORTON GROVE" ~ 2,
+    municip == "KENILWORTH" ~ 2,
+    municip == "WILMETTE" ~ 2,
+    municip == "WINNETKA" ~ 2,
+    municip == "LINCOLNWOOD" ~ 2,
+    municip == "NILES" ~ 2,
+    municip == "GOLF" ~ 2,
+    
+    municip == "CHICAGO" ~ 1,
+    
+    municip == "BENSENVILLE" ~ 4,
+    municip == "FRANKLIN PARK" ~ 4,
+    municip == "RIVER GROVE" ~ 4,
+    municip == "ELMWOOD PARK" ~ 4,
+    municip == "NORTHLAKE" ~ 4,
+    municip == "MELROSE PARK" ~ 4,
+    municip == "RIVER FOREST" ~ 4,
+    municip == "OAK PARK" ~ 4,
+    municip == "STONE PARK" ~ 4,
+    municip == "MAYWOOD" ~ 4,
+    municip == "BERKELEY" ~ 4,
+    municip == "BELLWOOD" ~ 4,
+    municip == "ELMHURST" ~ 4,
+    municip == "HILLSIDE" ~ 4,
+    municip == "FOREST PARK" ~ 4,
+    municip == "OAK BROOK" ~ 4,
+    municip == "WESTCHESTER" ~ 4,
+    municip == "BERWYN" ~ 4,
+    municip == "LA GRANGE PARK" ~ 4,
+    municip == "BROOKFIELD" ~ 4,
+    municip == "RIVERSIDE" ~ 4,
+    municip == "NORTH RIVERSIDE" ~ 4,
+    municip == "CICERO" ~ 4,
+    municip == "BROADVIEW" ~ 4,
+    
+    municip == "LYONS" ~ 5,
+    municip == "STICKNEY" ~ 5,
+    municip == "FOREST VIEW" ~ 5,
+    municip == "LA GRANGE" ~ 5,
+    municip == "WESTERN SPRINGS" ~ 5,
+    municip == "MC COOK" ~ 5,
+    municip == "SUMMIT" ~ 5,
+    municip == "HINSDALE" ~ 5,
+    municip == "COUNTRYSIDE" ~ 5,
+    municip == "INDIAN HEAD PARK" ~ 5,
+    municip == "HODGKINS" ~ 5,
+    municip == "BURR RIDGE" ~ 5,
+    municip == "JUSTICE" ~ 5,
+    municip == "BEDFORD PARK" ~ 5,
+    municip == "BURBANK" ~ 5,
+    municip == "BRIDGEVIEW" ~ 5,
+    municip == "WILLOW SPRINGS" ~ 5,
+    municip == "HICKORY HILLS" ~ 5,
+    municip == "HOMETOWN" ~ 5,
+    municip == "EVERGREEN PARK" ~ 5,
+    municip == "OAK LAWN" ~ 5,
+    municip == "CHICAGO RIDGE" ~ 5,
+    municip == "PALOS HILLS" ~ 5,
+    municip == "WORTH" ~ 5,
+    municip == "PALOS PARK" ~ 5,
+    municip == "PALOS HEIGHTS" ~ 5,
+    municip == "LEMONT" ~ 5,
+    municip == "ALSIP" ~ 5,
+    municip == "MERRIONETTE PARK" ~ 5,
+    municip == "ORLAND PARK" ~ 5,
+    municip == "HOMER GLEN" ~ 5,
+    municip == "ORLAND HILLS" ~ 5,
+    
+    municip == "CALUMET PARK" ~ 6,
+    municip == "BLUE ISLAND" ~ 6,
+    municip == "CRESTWOOD" ~ 6,
+    municip == "ROBBINS" ~ 6,
+    municip == "RIVERDALE" ~ 6,
+    municip == "DIXMOOR" ~ 6,
+    municip == "POSEN" ~ 6,
+    municip == "MIDLOTHIAN" ~ 6,
+    municip == "OAK FOREST" ~ 6,
+    municip == "HARVEY" ~ 6,
+    municip == "PHOENIX" ~ 6,
+    municip == "DOLTON" ~ 6,
+    municip == "BURNHAM" ~ 6,
+    municip == "CALUMET CITY" ~ 6,
+    municip == "SOUTH HOLLAND" ~ 6,
+    municip == "MARKHAM" ~ 6,
+    municip == "HAZEL CREST" ~ 6,
+    municip == "TINLEY PARK" ~ 6,
+    municip == "COUNTRY CLUB HILLS" ~ 6,
+    municip == "HOMEWOOD" ~ 6,
+    municip == "EAST HAZEL CREST" ~ 6,
+    municip == "THORNTON" ~ 6,
+    municip == "LANSING" ~ 6,
+    municip == "FLOSSMOOR" ~ 6,
+    municip == "GLENWOOD" ~ 6,
+    municip == "LYNWOOD" ~ 6,
+    municip == "CHICAGO HEIGHTS" ~ 6,
+    municip == "MATTESON" ~ 6,
+    municip == "OLYMPIA FIELDS" ~ 6,
+    municip == "FORD HEIGHTS" ~ 6,
+    municip == "SAUK VILLAGE" ~ 6,
+    municip == "STEGER" ~ 6,
+    municip == "PARK FOREST" ~ 6,
+    municip == "SOUTH CHICAGO HEIGHTS" ~ 6,
+    municip == "RICHTON PARK" ~ 6,
+    municip == "FRANKFORT" ~ 6,
+    TRUE ~ 0
+  ))
+```
+
+```{r, warning=FALSE, message = FALSE,fig.align='center'}
+
+sentence %<>%
+  mutate(municip = LAW_ENFORCEMENT_AGENCY) %>% 
+  mutate(municip = gsub("PD","",municip)) %>% 
+  mutate(municip = gsub("P.D.","",municip)) %>% 
+  mutate(municip = gsub("POLICE DEPARTMENT","",municip)) %>% 
+  mutate(municip = gsub("POLICE DEPT","",municip)) %>% 
+  mutate(municip = trimws(municip)) 
+
+case_length <- sentence %>% 
+  filter(sentence_month > "2011-01-01" & sentence_month < "2018-01-01") %>% 
+  group_by(municip, CASE_PARTICIPANT_ID) %>% 
+  summarise(case_length_p = mean(case_length_total, na.rm = TRUE)) %>% 
+  group_by(municip) %>% 
+  summarise(felonies_total = n_distinct(CASE_PARTICIPANT_ID), 
+            case_length_total = sum(case_length_p, na.rm = TRUE),
+            avg_case_length = mean(case_length_p, na.rm = TRUE)) %>% 
+  filter(felonies_total > 0) %>% 
+  filter(case_length_total > 0) %>% 
+  filter(avg_case_length > 0 & avg_case_length < 2000) %>% 
+  filter(felonies_total > 10)
+
+case_length_munici_w_data <- (left_join(case_length,municip_only_cities,by="municip") %>% 
+                         filter(!is.na(MUNICIPALI)))
+
+case_length_munici_n_data <- (full_join(case_length,municip_only_cities,by="municip") %>% 
+                         filter(is.na(avg_case_length)))
+```
+
+```{r warning=FALSE, message = FALSE,fig.align='center'}
+# Create a theme that customizes my theme specifically for maps
+my_theme_maps <- my_theme +
+                  theme_map() +
+                  theme(
+                      axis.title.y = element_blank(),
+                      axis.title.x = element_blank(),
+                      axis.text.y = element_blank(),
+                      axis.text.x = element_blank(),
+                      axis.ticks = element_blank(),
+                      panel.background = element_blank(),
+                      panel.grid = element_line(color = "#F8F8F8"),
+                      legend.position = c(0.15,0.15),
+                      
+                      plot.title = element_text(family="Tahoma", face="bold", size=14, hjust = 0),
+                      plot.subtitle = element_text(family="Tahoma",size=10),
+                      #plot.margin=unit(c(.3,.1,.3,.1),"cm"),
+                      plot.caption = element_text(family="Tahoma", size=6))
+
+
+
+```
+
+```{r, warning=FALSE, message = FALSE,fig.align='center', fig.width=10, fig.height=8,results='hide', fig.keep='all'}
+ggplot() +
+  geom_sf(data = case_length_munici_w_data, aes(fill=avg_case_length), lwd=0) +
+  geom_sf(data = case_length_munici_n_data, fill = "grey80", color = "black",lwd=0) +
+  my_theme_maps +
+  scale_fill_gradient(low="#FFC2C0",high="#99112C") +
+  annotate("text", x = 1185000, y = 1915000, family = "Tahoma", size=2.5, hjust=0, label = "District 1 - \nChicago") +
+  annotate("segment", x = 1180000, xend = 1200000, y = 1870000, yend = 1900000, color="black", linetype="dashed") +
+  annotate("text", x = 1170000, y = 1990000, family = "Tahoma", size=2.5, hjust=0, label = "District 2 - \nSkokie") +
+  annotate("segment", x = 1140000, xend = 1170000, y = 1970000, yend = 1990000, color="black", linetype="dashed") +
+  annotate("text", x = 1000000, y = 1900000, family = "Tahoma", size=2.5, hjust=0, label = "District 3 - Rolling \nMeadows") +
+  annotate("segment", x = 1030000, xend = 1030000, y = 1910000, yend = 1950000, color="black", linetype="dashed") +
+  annotate("text", x = 1020000, y = 1870000, family = "Tahoma", size=2.5, hjust=0, label = "District 4 - Maywood") +
+  annotate("segment", x = 1050000, xend = 1100000, y = 1880000, yend = 1900000, color="black", linetype="dashed") +
+  annotate("text", x = 1030000, y = 1840000, family = "Tahoma", size=2.5, hjust=0, label = "District 5 - \nBridgeview") +
+  annotate("segment", x = 1060000, xend = 1100000, y = 1840000, yend = 1835000, color="black", linetype="dashed") +
+  annotate("text", x = 1070000, y = 1760000, family = "Tahoma", size=2.5, hjust=0, label = "District 6 - \nMarkham") +
+  annotate("segment", x = 1100000, xend = 1150000, y = 1760000, yend = 1760000, color="black", linetype="dashed") +
+  labs(
+    title="Municipalities in Circuit Court Districts 2 and 6 \nDriving High Average Case Lengths",
+    y = "",
+    x = "",
+    subtitle="Average case length in days by Cook County Municipalities (2011 to 2017)",
+    fill = "Average Case \nLength (Days)",
+    caption = "Source: Cook County State Attorney's Office \nData Portal - Sentences; Circuit Court of Cook County;\nCook County Government - Cook Central Data Portal
+    
+    *Gray districts indicate no cases in relevant years or municipal townships. Townships usually do not have their own police \ndeparments and are under the jurisdiction of the Sheriff's Office."
+  )  
+
+```
+
+The figure above allows us to see the spatial variation in average case length, across the municipalities in Cook County. The SAO data has information on the Law Enforcement Agency (LEAs) that handled a given case, which maps onto the municipalities in Cook County. Consistent with the graph above we see that cases handled by LEAs in municipalities that are in the southern court district (District 6) in general have a higher average case length than other districts.
+
+
+```{r, warning=FALSE, message = FALSE,fig.align='center', fig.width=12, fig.height=10,results='hide', fig.keep='all'}
+centroid <- st_centroid(municip_only_cities)
+
+disposition %<>%
+  mutate(DISPO_DATE = as.Date(DISPO_DATE,'%m/%d/%Y' )) %>% 
+  mutate(disp_month = round_date(DISPO_DATE, "month"))  %>%
+  filter(disp_month > "2011-01-01" & disp_month < "2018-01-01") %>% 
+  filter(PRIMARY_CHARGE == "true") %>% 
+  mutate(municip = LAW_ENFORCEMENT_AGENCY) %>% 
+  mutate(municip = gsub("PD","",municip)) %>% 
+  mutate(municip = gsub("P.D.","",municip)) %>% 
+  mutate(municip = gsub("POLICE DEPARTMENT","",municip)) %>% 
+  mutate(municip = gsub("POLICE DEPT","",municip)) %>% 
+  mutate(municip = trimws(municip)) 
+
+# disposition_charges <- disposition %>% 
+#   count(CHARGE_DISPOSITION) 
+
+# Group into -- No conviction vs conviction
+disposition %<>%
+  mutate(CHARGE_DISPOSITION = trimws(CHARGE_DISPOSITION)) %>% 
+  mutate(conviction = case_when(
+    CHARGE_DISPOSITION == "Plea Of Guilty" ~ 1,
+    CHARGE_DISPOSITION == "Finding Guilty" ~ 1,
+    CHARGE_DISPOSITION == "Verdict Guilty" ~ 1,
+    CHARGE_DISPOSITION == "Plea of Guilty - Amended Charge" ~ 1,
+    
+    CHARGE_DISPOSITION == "Nolle Prosecution" ~ 0,
+    CHARGE_DISPOSITION == "FNPC" ~ 0,
+    CHARGE_DISPOSITION == "FNG" ~ 0,
+    CHARGE_DISPOSITION == "Verdict-Not Guilty" ~ 0,
+    CHARGE_DISPOSITION == "Case Dismissed" ~ 0,
+    CHARGE_DISPOSITION == "Finding Not Not Guilty" ~ 0,
+    CHARGE_DISPOSITION == "FNG Reason Insanity" ~ 0,
+    
+    CHARGE_DISPOSITION == "Death Suggested-Cause Abated" ~ 0,
+    CHARGE_DISPOSITION == "BFW" ~ 0,
+    CHARGE_DISPOSITION == "Transferred - Misd Crt" ~ 0,
+    TRUE ~ -99
+  )) %>% 
+  mutate(conviction = ifelse(conviction==-99,NA,conviction))
+
+# disposition_conv <- disposition %>%
+#    filter(conviction==0) %>%
+#    count(CHARGE_DISPOSITION)
+
+disp_by_municip <- disposition %>% 
+  group_by(municip) %>% 
+  summarise(conviction_rate = mean(conviction, na.rm = TRUE),
+            cases = n_distinct(CASE_PARTICIPANT_ID)) %>% 
+  filter(cases > 10)
+
+disp_by_municip_w_data <- (left_join(disp_by_municip,centroid,by="municip") %>% 
+                         filter(!is.na(MUNICIPALI)))
+
+disp_by_municip_n_data <- (full_join(disp_by_municip,municip_only_cities,by="municip") %>% 
+                         filter(is.na(conviction_rate)))
+
+disp_by_municip_w_data <- disp_by_municip_w_data %>% 
+  mutate(conviction_rate_bins = case_when(
+    conviction_rate >= 0 & conviction_rate < 0.6 ~ "0% to 60%",
+    conviction_rate >= 0.6 & conviction_rate < 0.68 ~ "60% to 68%",
+    conviction_rate >= 0.68 & conviction_rate < 0.72 ~ "68% to 72%",
+    conviction_rate >= 0.72 & conviction_rate < 1 ~ "72% to 100%",
+    TRUE ~ "0"
+  ))
+
+```
+
+```{r, warning=FALSE, message = FALSE,fig.align='center', fig.width=10, fig.height=8,results='hide', fig.keep='all'}
+
+ggplot() +
+  geom_sf(data = municip_only_cities, aes(fill = factor(district)), alpha = 0.5, lwd=0) +
+  geom_sf(data = disp_by_municip_n_data, fill="grey80",lwd=0) +
+  geom_sf(data = disp_by_municip_w_data, 
+          aes(color=factor(conviction_rate_bins), size= factor(conviction_rate_bins)),
+          alpha=0.8) +
+  my_theme_maps +
+  scale_fill_manual(values = c("#FFFFFF","#FFDB2C","#7F7A18","#FFF52F","#E5DC2B",
+                               '#B2AB21', "#7F6E16"), guide = FALSE) +
+  scale_size_manual(values = c(1,1.4,1.8,2.2), guide = FALSE) +
+  scale_color_manual(values = c("#99112C","#FF2E58","#B2AB21","#0B729A")) +
+  annotate("text", x = 1185000, y = 1915000, family = "Tahoma", size=2.5, hjust=0, label = "District 1 - \nChicago") +
+  annotate("segment", x = 1180000, xend = 1200000, y = 1870000, yend = 1900000, color="black", linetype="dashed") +
+  annotate("text", x = 1170000, y = 1990000, family = "Tahoma", size=2.5, hjust=0, label = "District 2 - \nSkokie") +
+  annotate("segment", x = 1140000, xend = 1170000, y = 1970000, yend = 1990000, color="black", linetype="dashed") +
+  annotate("text", x = 1000000, y = 1900000, family = "Tahoma", size=2.5, hjust=0, label = "District 3 - Rolling \nMeadows") +
+  annotate("segment", x = 1030000, xend = 1030000, y = 1910000, yend = 1950000, color="black", linetype="dashed") +
+  annotate("text", x = 1020000, y = 1870000, family = "Tahoma", size=2.5, hjust=0, label = "District 4 - Maywood") +
+  annotate("segment", x = 1050000, xend = 1100000, y = 1880000, yend = 1900000, color="black", linetype="dashed") +
+  annotate("text", x = 1030000, y = 1840000, family = "Tahoma", size=2.5, hjust=0, label = "District 5 - \nBridgeview") +
+  annotate("segment", x = 1060000, xend = 1100000, y = 1840000, yend = 1835000, color="black", linetype="dashed") +
+  annotate("text", x = 1070000, y = 1760000, family = "Tahoma", size=2.5, hjust=0, label = "District 6 - \nMarkham") +
+  annotate("segment", x = 1100000, xend = 1150000, y = 1760000, yend = 1760000, color="black", linetype="dashed") +
+  labs(
+    title="Highest Conviction Rates Concentrated in Circuit \nCourt Districts 2 and 6",
+    y = "",
+    x = "",
+    subtitle="Conviction Rate of Primary Charges by Cook County Municipalities (2011 to 2017)",
+    color = "Conviction Rate",
+    caption = "Source: Cook County State Attorney's Office \nData Portal - Dispositions; Circuit Court of Cook County;\nCook County Government - Cook Central Data Portal
+    
+    *Gray districts indicate no cases in relevant years or municipal townships. Townships usually do not have their own police \ndeparments and are under the jurisdiction of the Sheriff's Office."
+  )  
+```
+
+
+The SAO data also contains information on the disposition of each charge. That is, whether the charge resulted in a conviction (e.g. finding of guilt, guilty plea, etc) or not (e.g. SAO refused to prosecute, case dismissed, no finding of guilt). The figure above takes only the primary charge for each case-participant and plots the conviction rate by municipalities in Cook County. Similar to the graph before, Districts 2 and 6 seem to both have longer average case lengths as well as higher conviction rates. 
+
+
 # Bail Reform in Cook County
 
 Recent media attention has shed light on the arbitrary decision-making in bond court and how it penalizes the poor. Many people are held pretrial simply because they cannot pay the bail amount, rather than being held because they pose a flight risk. The data on this topic is unfortunately sparse, and the SAO data also does not capture any information on this step of the process. 
 
 However, the subject received greater attention in Chicago when SA Kim Foxx announced in June 2017 that her office was pushing to reform this arbitrary system and recommending courts post no bail amount for defendants who don’t present a flight risk. Following that, the Governor signed into law a bill pushed by SA Foxx to this effect. External organizations, such as Chicago Appleseed, have written about this subject and compiled their own datasets, using bond court observations and data requested from the Bond Court through FOIA requests. Some of this data has been made public. While it is not as robust or rich as the SAO data, I explore both datasets below to see if there are signs of change or improvement since the bill was passed.
 
-```{r warning=FALSE, message = FALSE, fig.align='center'}
+```{r, warning=FALSE, message = FALSE, fig.align='center'}
 # Explore Bond Court Dispositions Data
 bond_court_disp <- read.csv(here("data_source","bond-court-dispositions","data","cbc_disposition_stats.csv"),stringsAsFactors = FALSE)
 
@@ -421,7 +787,7 @@ bond_court_disp_sum$type_bond <- factor(bond_court_disp_sum$type_bond,
 ```
 
 
-```{r warning=FALSE, message = FALSE, fig.align='center'}
+```{r, warning=FALSE, message = FALSE, fig.align='center'}
 plot6 <- 
 bond_court_disp_sum %>% 
   ggplot(aes(area=pct_bond, label = type_bond, fill=type_bond)) +
@@ -467,7 +833,7 @@ We see that after the reform bill is passed in September 2017, usage of D-Bonds 
 To supplement this data, Chicago Appleseed also embarked on a court-watching initiative where volunteers were trained to sit in bond court and collect data from August 2017 to October 2017 (one month before and after the bill was passed). While limited in other ways, this data allows a more case-level insight into bond decision-making before and after the bill was passed.
 
 
-```{r warning=FALSE, message = FALSE,fig.align='center',fig.height=6, fig.width=6}
+```{r, warning=FALSE, message = FALSE,fig.align='center',fig.height=6, fig.width=6}
 # Explore Bond Court Observation Data
 
 # bond_court_obs_PSA <- bond_court_obs %>% 
@@ -520,7 +886,7 @@ bond_court_obs_collapse$after_reform <- factor(bond_court_obs_collapse$after_ref
 ```
 
 
-```{r warning=FALSE, message = FALSE,fig.align='center',fig.height=6, fig.width=10}
+```{r, warning=FALSE, message = FALSE,fig.align='center',fig.height=6, fig.width=10}
 
 plot7<- 
 ggplot(as.data.frame(bond_court_obs_collapse),
@@ -545,7 +911,6 @@ plot7
 ```
 
 The court-watching data reveals more information about which offense types are driving the decrease in usage of D-Bonds. Prior to the reform, the majority of narcotics, UUW, and property crime cases were receiving D-Bonds. In the month after the reform is passed, we see greater variation in the bond decisions being made, with a large percentage being given I-Bonds. A next step will be to understand if bond decisions are, indeed, being more informed by the flight risk of the accused or if they continue to be somewhat arbitrary.
-
 
 
 
