@@ -1,13 +1,13 @@
 ---
 title: "Exploring Inefficiencies and Bail Reform in Cook County Criminal Justice System"
 author: "Damini Sharma"
-output: 
-  html_document:
-    code_folding: hide
-    toc: true
-    toc_depth: 3
-    toc_float:
-      collapsed: false
+output: html_document
+  # html_document:
+  #   code_folding: hide
+  #   toc: true
+  #   toc_depth: 3
+  #   toc_float:
+  #     collapsed: false
 
 ---
 
@@ -24,7 +24,7 @@ lapply(libs, library, character.only=TRUE)
 # source("theme.R")
 ```
 
-```{r warning=FALSE , message=FALSE}
+```{r warning=FALSE , message=FALSE, echo=FALSE}
 my_theme <- theme(plot.background = element_rect(fill="#FFFFFF", color = "white"),
                   plot.title = element_text(family="Tahoma", face="bold", size=14, hjust=0),
                   plot.subtitle = element_text(family="Tahoma",size=10),
@@ -53,6 +53,12 @@ my_theme <- theme(plot.background = element_rect(fill="#FFFFFF", color = "white"
 
 ```
 
+[SAO data](https://datacatalog.cookcountyil.gov/browse?tags=state%27s%20attorney%20case-level&sortBy=most_accessed)  
+
+[Chicago Data Collaborative](https://chicagodatacollaborative.org/)  
+
+[GitHub Repository](https://github.com/DSharm/CookCountyCriminalJustice)
+
 ### Background
 The Cook County State's Attorney's Office (SAO) is the second largest prosecutor's office in the United States. Tens of thousands of criminal cases are prosecuted every year by the Office, across 100 law enforcement jurisdictions and in service of over five million residents of Cook County. When she took office in December 2016, State's Attorney Kim Foxx announced a largely unprecedented commitment to improving the transparency of the SAO's work. Accordingly, in 2017 the SAO released a Baseline Data Report, along with de-identified data capturing snapshots of all cases that go through the SAO from arrest to sentencing. While some of the data goes as far back as the early 2000s, due to changes in the accuracy of storing and reporting the data, it is more reliable starting in 2011. 
 
@@ -61,13 +67,13 @@ Cook County has been criticized of having excessive lags in the process from arr
 
 In addition to excessive lags, recent media attention has shed light on the arbitrary decision-making in bond court and how it penalizes the poor. Many people are held pretrial simply because they cannot pay the bail amount, rather than being held because they pose a flight risk. The data on this topic is unfortunately sparse, and the SAO data also does not capture any information on this step of the process. 
 
-However, the subject received greater attention in Chicago when SA Kim Foxx announced in June 2017 that her office was pushing to reform this arbitrary system and recommending courts post no bail amount for defendants who don’t present a flight risk. Following that, the Governor signed into law a bill pushed by SA Foxx to this effect. External organizations, such as Chicago Appleseed, have written about this subject and compiled their own datasets, using bond court observations and data requested from the Bond Court through FOIA requests. Some of this data has been made public. While it is not as robust or rich as the SAO data, I explore the latter to see if there are signs of change or improvement since the bill was passed.
+However, the subject received greater attention in Chicago when SA Kim Foxx announced in June 2017 that her office was pushing to reform this arbitrary system and recommending courts post no bail amount for defendants who don’t present a flight risk. Following that, the Governor signed into law a bill pushed by SA Foxx to this effect. External organizations, such as Chicago Appleseed, have written about this subject and compiled their own datasets, using bond court observations and data requested from the Bond Court through FOIA requests. Some of this data has been made public. While it is not as robust or rich as the SAO data, I explore the data requested from Bond Court to see if there are signs of change or improvement since the bill was passed.
 
 ### Case Length: Arrest To Sentencing 
 I start by looking at the Sentences data from the SAO to see how the average length of case (from arrest to sentencing) has changed from 2011 to 2018. In addition to the average case length, I plot total number of defendants per month that are sentenced and the total number of days spent on cases each month in the same time period. All three are plotted as percentage of the February 2011 value. Note, throughout the analysis I restrict the datasets to only include the top-level charge of a case-participant (since case-participants can have numerous charges. We revisit this point later). 
 
 
-```{r warning=FALSE, message = FALSE, fig.align='center'}
+```{r warning=FALSE, message = FALSE, fig.align='center',echo=FALSE}
 # Read in the data
 intake <- read.csv(here('data_source','SAO Data','Intake.csv'),stringsAsFactors = FALSE) 
 initiation <- read.csv(here("data_source","SAO Data","Initiation.csv"),stringsAsFactors = FALSE) 
@@ -75,7 +81,7 @@ sentence <- read.csv(here("data_source","SAO Data","Sentencing.csv"),stringsAsFa
 disposition <- read.csv(here("data_source","SAO Data","Dispositions.csv"),stringsAsFactors = FALSE) 
 ```
 
-```{r warning=FALSE, message = FALSE, fig.align='center'}
+```{r warning=FALSE, message = FALSE, fig.align='center',echo=FALSE}
 # Clean data
 
 # For graph 1, we look at sentences data only. 
@@ -116,7 +122,7 @@ case_length_as_pct <- left_join(case_length, case_length_2011, by="type_measure"
 ```
 
 
-```{r warning=FALSE, message = FALSE, fig.align='center'}
+```{r warning=FALSE, message = FALSE, fig.align='center',echo=FALSE}
 
 plot1 <- 
   case_length_as_pct %>% 
@@ -145,19 +151,19 @@ plot1 <-
   theme(plot.margin = margin(.5,.5,.1,.1,"cm"),
         panel.grid.major.y = element_blank(),
         panel.grid.minor.y = element_blank()) +
-  annotate("segment",y=1.65,yend = 1.25,x=as.Date("2016-01-01"), xend=as.Date("2016-08-01"), linetype="dashed") +
+  annotate("segment",y=1.65,yend = 1.40,x=as.Date("2016-01-01"), xend=as.Date("2016-08-01"), linetype="dashed") +
   annotate("text", x=as.Date("2015-01-01"), y = 1.75, family = "Tahoma", size=2.5, hjust=0, label = "Case-days stop following the decline of \nnumber of defendants, suggesting\nmore days are spent on fewer cases")
 
 ggsave(here("data_output","cases_sentenced_avg_case_length.pdf"),plot1,device="pdf",width=8,height=5)
 plot1
 ```
 
-Average case length increases consistently from 2011 to 2017. Until approximately 2015, the number of defendants sentenced per month is rising and total number of days is rising at a faster rate which could explain the rise in average case length from 2011 to 2015. As the number of defendants increases, the Office is under more pressure, which would cause the total number of days spent to increase at a faster rate. However, if this was the full explanation, we would see the total number of days decrease as the number of defendants declines sharply after 2015. While this appears true from 2015 to 2016, after 2016 the total number of days plateaus while the number of total defendants per month continues to decline. From 2015 to 2017, there seem to be two simultaneous trends that are increasing the average case length: decreasing number of defendants $\textit{and}$ a steady or slightly increasing number of days spent on cases. In other words, the Office is spending more days on fewer cases.
+Average case length increases consistently from 2011 to 2018. Until approximately 2015, the number of defendants sentenced per month is rising and total number of days is rising at a faster rate which could explain the rise in average case length from 2011 to 2015. As the number of defendants increases, the Office is under more pressure, which would cause the total number of days spent to increase at a faster rate. However, if this was the full explanation, we would see the total number of days decrease as the number of defendants declines sharply after 2015. While this appears true from 2014 to 2016, after 2016 the total number of days plateaus while the number of total defendants per month continues to decline. From 2016 to 2018, there seem to be two simultaneous trends that are increasing the average case length: decreasing number of defendants $\textit{and}$ a steady or slightly increasing number of days spent on cases. In other words, the Office is spending more days on fewer cases.
 
 ### Breakdown of Offense Types
-To explain this trend further, I turn to types of offenses. I want to understand which offense types are driving the decline in number of defendants, as well as which offense types are driving the rise in total number of days spent. In order to do this, I first look at the breakdown of offense types for all cases sentenced from 2011 to 2017.
+To explain this trend further, I turn to types of offenses. I want to understand which offense types are driving the decline in number of defendants, as well as which offense types are driving the rise in total number of days spent. In order to do this, I first look at the breakdown of offense types for all cases sentenced from 2011 to 2018.
 
-```{r warning=FALSE, message = FALSE,fig.align='center',fig.width=5}
+```{r warning=FALSE, message = FALSE,fig.align='center',fig.width=5,echo=FALSE}
 intake %<>% 
   mutate(RECEIVED_DATE = as.Date(RECEIVED_DATE,'%m/%d/%Y')) %>% 
   mutate(receive_month = round_date(RECEIVED_DATE, "month")) %>% 
@@ -200,7 +206,7 @@ intake_count <- int_ini_sent %>%
 ```
 
 
-```{r warning=FALSE, message = FALSE,fig.align='center',fig.height=8,fig.width=5}
+```{r warning=FALSE, message = FALSE,fig.align='center',fig.height=8,fig.width=5,echo=FALSE}
   
 packing <- circleProgressiveLayout(intake_count$pct, sizetype='area')
 
@@ -217,7 +223,7 @@ ggplot() +
   coord_fixed(ratio=1/1.1) +
   labs(
     title = "Top Five Categories Make Up 65% \nof All Offenses Sentenced",
-    subtitle = "Breakdown of Felonies Sentenced from 2011 to 2017 By Offense Type",
+    subtitle = "Breakdown of Felonies Sentenced from 2011 to 2018 By Offense Type",
     y="",
     x = "",
     caption = "Source: Cook County State Attorney's Office\n Data Portal - Intake, Initiations, and Sentences"
@@ -245,14 +251,14 @@ plot2
 
 ```
 
-It should be noted here that defendants can have multiple offense types. For example, someone arrested for burglarly may also have been found with drugs on them, and may be prosecuted and sentenced for both charges separately. Instead of using offense types at the charge level, I use the broad "Offense Type" variable from the Intake file, which represents all case participants -- not charges -- that are brought in to the SAO for review. If the SAO decides to prosecute, a case is "initiated" and the specific charges are determined. To simplify the analysis, I use the broad offense type from the Intake file and merge this onto the sentences data, which is already restricted to the top level charge. 
+It should be noted here that defendants can have multiple offense types. For example, someone arrested for burglary may also have been found with drugs on them, and may be prosecuted and sentenced for both charges separately. Instead of using offense types at the charge level, I use the broad "Offense Type" variable from the Intake file, which represents all case participants -- not charges -- that are brought in to the SAO for review. If the SAO decides to prosecute, a case is "initiated" and the specific charges are determined. To simplify the analysis, I use the broad offense type from the Intake file and merge this onto the sentences data, which is already restricted to the top level charge. 
 
 Narcotics, at approximately 30\%, make up the largest portion of all offenses sentenced. Collectively, narcotics, unlawful use of weapon, DUIs, retail theft, burglary, and battery make up approximately 65\% of all offenses sentenced. The "Other Crimes" category contains approximately 60 distinct crimes such as forgery, escape (failure to return), identity theft and credit card fraud. 
 
 ### Different Offenses Over Time
 Next, I want to look at which of these offenses are, over time, contributing to the trend of decreasing number of cases we saw in the first graph. 
 
-```{r warning=FALSE, message = FALSE,fig.align='center'}
+```{r warning=FALSE, message = FALSE,fig.align='center',echo=FALSE}
 # Next, we construct the graphs to figure out if if any particular types of
 # felonies are causing the increase or decrease in total defendants sentenced
 
@@ -280,7 +286,7 @@ int_init_by_off_pct$Offense_Category_broad <- factor(int_init_by_off_pct$Offense
                                                      
 ```
 
-```{r warning=FALSE, message = FALSE,fig.align='center'}
+```{r warning=FALSE, message = FALSE,fig.align='center',echo=FALSE}
 
 plot3 <- int_init_by_off_pct %>% 
   filter(Offense_Category_broad %in% c("Retail Theft", "DUI", "Narcotics","Robbery",
@@ -293,7 +299,7 @@ plot3 <- int_init_by_off_pct %>%
                               "#99112C", "#E51942", "#A6122F")) +
   labs(
     title = "Retail Theft, DUIs, and Narcotics Cases Drive Decrease in \nNumber of Cases Sentenced",
-    subtitle = "Number of Cases Sentenced Per Month by Offense Type from 2012 to 2017",
+    subtitle = "Number of Cases Sentenced Per Month by Offense Type from 2012 to 2018",
     caption = "Source: Cook County State Attorney's Office\n Data Portal - Initiations, Intake, and Sentences",
     x = "Year",
     y = "Number of Cases Per Month") +
@@ -310,14 +316,14 @@ plot3
 ```
 
 
-The above graph plots total number of felonies sentenced from 2012 to 2017, faceted by offense type, for the 6 offense types that had the greatest absolute change in number of felonies from 2012 to 2017. Note, the window now starts at 2012 instead of 2011. This is because the Intake data begins in 2011, and since I've only kept the universe of case participants that are in both Intake and Sentences datasets, I shortened the window. Otherwise, cases that take longer to prosecute (e.g. homicide) would exist in very small numbers in 2011 if they were only initiated in 2011, which would artificially deflate the number of homicide convictions.
+The above graph plots total number of felonies sentenced from 2012 to 2018, faceted by offense type, for the 6 offense types that had the greatest absolute change in number of felonies from 2012 to 2018. Note, the window now starts at 2012 instead of 2011. This is because the Intake data begins in 2011, and since I've only kept the universe of case participants that are in both Intake and Sentences datasets, I shortened the window. Otherwise, cases that take longer to prosecute (e.g. homicide) would exist in very small numbers in 2011 if they were only initiated in 2011, which would artificially deflate the number of homicide convictions.
 
 From the above graph, we see that retail theft, DUIs and narcotics are driving the decline in number of cases sentenced. These trends are partially explained by policy changes instituted by former Governor Rauner and State's Attorney Kim Foxx. Starting in 2011, Chicago had decriminalized possession of small amounts of marijuana, and a statewide bill approved in July 2016 by Governor Rauner further forced police officers to stop arresting those caught with small amounts of drugs. Also in late 2016, SA Kim Foxx announced that retail-theft cases would be considered misdemeanors (not felonies) unless the suspect stole merchandise worth \$1,000 or higher. Until this change, the threshold was \$300. This policy change can clearly be seen in the steep drop in retail-theft cases around 2017.
 
 ### Case Lengths By Offense Type
 Having better understood which offense types are driving the decline in number of cases, I turn to looking at which offense types are driving the increase in case length.
 
-```{r warning=FALSE, message = FALSE,fig.align='center',fig.width=8, fig.height=8}
+```{r warning=FALSE, message = FALSE,fig.align='center',fig.width=8, fig.height=8,echo=FALSE}
 
 # Want to calculate avg length per case (first collapse by Case participant) and then avg length
 # per offense type, broken down into 2 time periods (before and after 2016)
@@ -348,7 +354,7 @@ lengths_by_off_change <-lengths_by_offense_2016 %>%
 lengths_by_offense_2016$after_2016 <- factor(lengths_by_offense_2016$after_2016, levels = c("before","after"), labels = c("Before 2016", "After 2016"), ordered = TRUE)
 ```
 
-```{r warning=FALSE, message = FALSE,fig.align='center',fig.width=8, fig.height=8}
+```{r warning=FALSE, message = FALSE,fig.align='center',fig.width=8, fig.height=8,echo=FALSE}
 # data <- lengths_by_offense %>% 
 #   filter(Offense_Category_broad %in% c("Homicide","DUI","Unlawful Use \n of Weapon","Sex Crimes")) %>%
 #   ggplot() +
@@ -386,7 +392,7 @@ The distribution of case lengths shifts right across all offense types, though i
 ### Beyond Offense Types
 #### Variation in Case Length by Judges and Circuit Court Districts
 
-```{r warning=FALSE, message = FALSE,fig.align='center', fig.width=8}
+```{r warning=FALSE, message = FALSE,fig.align='center', fig.width=8,echo=FALSE}
 # I want to see if there's any interesting variation in case length by District or Judge
 
 judge_count <- int_ini_sent %>% 
@@ -402,7 +408,7 @@ judge_count <- int_ini_sent %>%
             avg_case_length =  mean(case_length_p, na.rm = TRUE))
 ```
 
-```{r warning=FALSE, message = FALSE,fig.align='center', fig.width=8}
+```{r warning=FALSE, message = FALSE,fig.align='center', fig.width=8,echo=FALSE}
 plot5 <-
 judge_count %>% 
   filter(COURT_NAME %in% c("District 1 - Chicago","District 2 - Skokie","District 5 - Bridgeview",
@@ -423,7 +429,7 @@ judge_count %>%
     caption = "Source: Cook County State Attorney's Office \n Data Portal - Initiations, Intake, and Sentences \n
     *Case-days is the sum of case lengths for all the cases the judge worked on, many of them concurrently.")  +
   annotate("text", x = 100, y = 2.8, family = "Tahoma", size=2.5, hjust=0, label = "This Markham judge spent ~100,000\ncase-days* on 300 cases, while other judges\nspent far fewer case-days on a \nsimilar number of cases.") +
-  annotate("segment", xend = 310, x = 200, yend = 0.9, y = 1.9,color="black", arrow=arrow(length = unit(0.03, "npc"))) + 
+  annotate("segment", xend = 290, x = 200, yend = 1.1, y = 1.9,color="black", arrow=arrow(length = unit(0.03, "npc"))) + 
   my_theme +
   scale_color_manual(values = c("#99112C","#FF2E58","#0B9157","#0B729A")) +
   theme(
@@ -442,7 +448,7 @@ plot5
 Beyond offense types, I am also interested in seeing if the delays in sentencing cases are uniformly distributed across judges and districts. The figure above suggests that they are not. For the same total number of cases sentenced, we see fairly large variation in the total number of days spent on all cases by judges. For example, for judges who sentenced approximately 300 cases, some judges - particularly in courts serving the southern suburbs (District 6) - spent more days than other judges. Judges from Markham seem to consistently spend more days on cases than their counterparts in Chicago, Skokie, and Bridgeview. This could be signal that more resources are needed in Markham, perhaps, but more work is needed to understand these trends.
 
 
-```{r, warning=FALSE, message = FALSE,fig.align='center', results='hide', fig.keep='all'}
+```{r, warning=FALSE, message = FALSE,fig.align='center', results='hide', fig.keep='all',echo=FALSE}
 municipality <- st_read(here('data_source','Municipality','Municipality.shp'))
 
 municip_only_cities <- municipality %>% 
@@ -625,7 +631,7 @@ municip_only_cities <- municip_only_cities %>%
   ))
 ```
 
-```{r, warning=FALSE, message = FALSE,fig.align='center'}
+```{r, warning=FALSE, message = FALSE,fig.align='center',echo=FALSE}
 
 sentence %<>%
   mutate(municip = LAW_ENFORCEMENT_AGENCY) %>% 
@@ -655,7 +661,7 @@ case_length_munici_n_data <- (full_join(case_length,municip_only_cities,by="muni
                          filter(is.na(avg_case_length)))
 ```
 
-```{r warning=FALSE, message = FALSE,fig.align='center'}
+```{r warning=FALSE, message = FALSE,fig.align='center',echo=FALSE}
 # Create a theme that customizes my theme specifically for maps
 my_theme_maps <- my_theme +
                   theme_map() +
@@ -678,7 +684,7 @@ my_theme_maps <- my_theme +
 
 ```
 
-```{r, warning=FALSE, message = FALSE,fig.align='center', fig.width=10, fig.height=8,results='hide', fig.keep='all'}
+```{r, warning=FALSE, message = FALSE,fig.align='center', fig.width=10, fig.height=8,results='hide', fig.keep='all',echo=FALSE}
 
 municip_only_cities_1 <- municip_only_cities %>% 
   filter(district==1) %>% 
@@ -737,7 +743,7 @@ ggplot() +
     title="Municipalities in Circuit Court Districts 2 and 6 \nDriving High Average Case Lengths",
     y = "",
     x = "",
-    subtitle="Average case length in days by Cook County Municipalities (2011 to 2017)",
+    subtitle="Average case length in days by Cook County Municipalities (2011 to 2018)",
     fill = "Average Case \nLength (Days)",
     caption = "Source: Cook County State Attorney's Office \nData Portal - Sentences; Circuit Court of Cook County;\nCook County Government - Cook Central Data Portal
     
@@ -752,7 +758,7 @@ The figure above allows us to see the spatial variation in average case length, 
 
 The SAO data also contains information on the disposition of each charge. That is, whether the charge resulted in a conviction (e.g. finding of guilt, guilty plea, etc) or not (e.g. SAO refused to prosecute, case dismissed, no finding of guilt). The figure above takes only the primary charge for each case-participant and plots the conviction rate by municipalities in Cook County.
 
-```{r, warning=FALSE, message = FALSE,fig.align='center', fig.width=12, fig.height=10,results='hide', fig.keep='all'}
+```{r, warning=FALSE, message = FALSE,fig.align='center', fig.width=12, fig.height=10,results='hide', fig.keep='all',echo=FALSE}
 centroid <- st_centroid(municip_only_cities)
 
 disposition %<>%
@@ -821,7 +827,7 @@ disp_by_municip_w_data <- disp_by_municip_w_data %>%
 
 ```
 
-```{r, warning=FALSE, message = FALSE,fig.align='center', fig.width=10, fig.height=8,results='hide', fig.keep='all'}
+```{r, warning=FALSE, message = FALSE,fig.align='center', fig.width=10, fig.height=8,results='hide', fig.keep='all',echo=FALSE}
 
 disp_by_municip_n_data2 <- disp_by_municip_n_data %>% 
   count(AGENCY_DES)
@@ -890,7 +896,7 @@ ggplot() +
     title="Highest Conviction Rates Concentrated in Circuit \nCourt Districts 2 and 3",
     y = "",
     x = "",
-    subtitle="Conviction Rate of Primary Charges by Cook County Municipalities (2011 to 2017)",
+    subtitle="Conviction Rate of Primary Charges by Cook County Municipalities (2011 to 2018)",
     color = "Conviction Rate",
     caption = "Source: Cook County State Attorney's Office \nData Portal - Dispositions; Circuit Court of Cook County;\nCook County Government - Cook Central Data Portal
     
@@ -921,7 +927,7 @@ Turning to the Bail Reform bill, I analyze the Bond Court Disposition dataset co
 Using the Bond Court Disposition data, I look at the percentage of cases receiving the various bond types before and after the bill is passed. 
 
 
-```{r, warning=FALSE, message = FALSE, fig.align='center'}
+```{r, warning=FALSE, message = FALSE, fig.align='center',echo=FALSE}
 # Explore Bond Court Dispositions Data
 bond_court_disp <- read.csv(here("data_source","bond-court-dispositions","data","cbc_disposition_stats.csv"),stringsAsFactors = FALSE)
 
@@ -962,7 +968,7 @@ bond_court_disp_sum$type_bond <- factor(bond_court_disp_sum$type_bond,
 ```
 
 
-```{r, warning=FALSE, message = FALSE, fig.align='center'}
+```{r, warning=FALSE, message = FALSE, fig.align='center',echo=FALSE}
 plot6 <- 
 bond_court_disp_sum %>% 
   ggplot(aes(area=pct_bond, label = type_bond, fill=type_bond)) +
@@ -1002,120 +1008,6 @@ plot6
 We see that after the reform bill is passed in September 2017, usage of D-Bonds falls sharply while usage of I-Bonds increases. This is certainly an improvement, as fewer people have to pay a cash amount to ensure their release. However, D-Bonds are still given to roughly 20\% of cases after the reform. Because of the aggregated nature of the Bond Court Dispositions data received through FOIA, any variation in bond decisions by offense type or judges is masked.
 
 The court-watching data confirms that this trend. This suggests the bill has been largely successful at achieving its intended goal. However, more information and a richer dataset is needed to understand if the arbitrary nature of bail decision-making has stopped. For example, we still need more information to know whether the D-Bonds that continue to be given are indeed given to people who present a higher flight risk, and whether their ability to afford the bail amount is taken into consideration. 
-
-
-
-```{r, warning=FALSE, message = FALSE,fig.align='center',fig.height=6, fig.width=6}
-# Explore Bond Court Observation Data
-
-# bond_court_obs_PSA <- bond_court_obs %>% 
-#   count(PSA_Category)
-# bond_court_obs_judge <- bond_court_obs %>% 
-#   count(Judge)
-# bond_court_obs_bondtype <- bond_court_obs %>% 
-#   count(Bond_Type)
-# bond_court_obs_max_charge <- bond_court_obs %>% 
-#   count(Max_Charge)
-# bond_court_obs_SArec <- bond_court_obs %>% 
-#   count(SARec_I)
-
-# charges <- c("1 - traffic, non-DUI",  "2 - traffic, DUI", 
-#              "3 - drug possession (PCS)", "4 - drug sales (manufacture/delivery, PCS with intent)",
-#              "5 - gun possession (all UUW charges)", "6 - retail theft", 
-#              "7 - other property crimes (e.g. burglary, possession of a stolen motor vehicle)",
-#              "8 - robbery", "9 - aggravated battery (usually against a police officer)",
-#              "10 - murder", "11 - other miscellaneous crimes against a person")
-
-
-# Goal - make an alluvial chart that goes from max charge to SArec_I to bond type
-# bond_court_obs <- read.csv(here("data_source","court-observation","aug_sept_oct_by_id.csv"),stringsAsFactors = FALSE)
-# bond_court_obs %<>% 
-#   separate(Date, into= c("day","date_temp","year"), sep = ",") %>% 
-#   mutate(date_temp2 = trimws(paste(date_temp,year,sep = " "))) %>% 
-#   mutate(date = as.Date(date_temp2, format = "%B %d %Y")) %>% 
-#   select(-date_temp, -date_temp2, day, year) %>% 
-#   mutate(after_reform = ifelse(date>=reform,"after reform","before reform")) %>% 
-#   mutate(ind = 1) %>% 
-#   mutate(Highest_Charge = case_when(
-#     #Max_Charge == 2 ~ "DUI",
-#     Max_Charge == 3 | Max_Charge == 4 ~ "Narcotics",
-#     Max_Charge == 5 ~ "Unlawful Use\n of Weapon",
-#     Max_Charge == 7 |Max_Charge == 6 ~ "Property \nCrimes",
-#     Max_Charge == 8 | Max_Charge == 11 | Max_Charge == 9 ~ "Person \nCrimes",
-#     TRUE ~ ""
-#   )) %>% 
-#   mutate(bond_type2 = case_when(
-#     Bond_Type == "C-bond" ~ "Other",
-#     Bond_Type == "IEM" ~ "Other",
-#     Bond_Type == "No Bond" ~ "Other",
-#     TRUE ~ Bond_Type
-#    )) %>% 
-#   mutate(Highest_Charge = ifelse(Highest_Charge == "",NA,Highest_Charge))
-# 
-# bond_court_obs_collapse <- bond_court_obs %>% 
-#   group_by(after_reform,SARec_I, bond_type2, Highest_Charge) %>% 
-#   summarise(freq = sum(ind)) %>% 
-#   filter(!is.na(bond_type2)) %>% 
-#   filter(!is.na(Highest_Charge))
-# 
-# # is_alluvia_form(as.data.frame(bond_court_obs_collapse), axes = 1:5, silent = TRUE) # TRUE
-# 
-# bond_court_obs_collapse$after_reform <- factor(bond_court_obs_collapse$after_reform, levels = c("before reform","after reform"),labels = c("Before \nReform", "After \nReform"), ordered = TRUE)
-```
-
-
-```{r, warning=FALSE, message = FALSE,fig.align='center',fig.height=6, fig.width=10}
-
-# plot7<- 
-# ggplot(as.data.frame(bond_court_obs_collapse),
-#        aes(y = freq, axis2 = after_reform, axis1 = Highest_Charge, axis3 = bond_type2)) +
-#   geom_flow(aes(fill = Highest_Charge), width = 1/12, alpha = 0.8)+
-#   geom_stratum(width = 1/3, fill = "grey50", color="grey20") +
-#   scale_x_discrete(limits = c("Highest Charge", "After Reform","Bond Type" )) +
-#   geom_text(stat = "stratum", label.strata = TRUE,size = 2.5, color = "white", family = "Tahoma", face="bold") +
-#   #geom_fit_text(label.strata=TRUE, stat = "stratum",color = "white", family = "Tahoma",min.size = 0, reflow = TRUE)+
-#   labs(
-#     title="Much Smaller Percentage of Narcotics and Unlawful Use of \nWeapon Cases Given D-Bonds Post Reform Bill ",
-#     y = "Frequency",
-#     subtitle="Flow of Cases by Offense Type to Bond Decisions From August 2017 to October 2017",
-#     fill = "Highest Charge",
-#     caption = "Source: Court Watching Data Collected by Chicago Appleseed, \nAvailable on ChicagoDataCollaborative.org"
-#   )  +
-#   my_theme +
-#   scale_fill_manual(values = c("#095E7F", "#E5C528","#FF2E58","#99112C","#12BDFF"))
-#   
-# # bond_court_obs_collapse2 <- bond_court_obs_collapse %>% 
-# #   filter(bond_type2 %in% c("D-bond","I-bond"))
-# 
-# plot7_2 <- ggplot(as.data.frame(bond_court_obs_collapse),
-#        aes(y = freq, axis1 = after_reform, axis2 = bond_type2)) +
-#   geom_flow(aes(fill = Highest_Charge, label = Highest_Charge), width = 1/12, alpha = 0.7)+
-#   geom_stratum(width = 1/5, fill = "grey40", color="grey20") +
-#   scale_x_discrete(limits = c("After Reform","Bond Type" )) +
-#   geom_text(stat = "stratum", label.strata = TRUE,size = 3.5, color = "white", family = "Tahoma", face="bold") +
-#   labs(
-#     title="Significant Shift Away From Cash-Based D-Bonds and Towards I-Bonds \nAcross All Offense Types After the Reform Bill is Passed",
-#     x = "",
-#     y = "Frequency",
-#     subtitle="Flow of Cases by Offense Type to Bond Decisions From August 2017 to October 2017",
-#     fill = "Highest Charge",
-#     caption = "Source: Court Watching Data Collected by Chicago Appleseed, \nAvailable on ChicagoDataCollaborative.org"
-#   )  +
-#   my_theme +
-#   scale_fill_manual(values = c("#095E7F", "#E5C528","#FF2E58","#99112C","#12BDFF"))  +
-#   theme(legend.position = c(0.8,0.5),
-#         legend.background = element_rect(fill="grey90", color = "#F8F8F8"))
-#   # annotate("label", x = 1.4, y = 2150, family = "Tahoma", size=2, hjust=0, label = "Narcotics", color = "white", fill = "#095E7F" ) +
-#   # annotate("label", x = 1.4, y = 1900, family = "Tahoma", size=2, hjust=0, label = "Person Crimes", color = "white", fill = "#B2AB21") +
-#   # annotate("label", x = 1.4, y = 1750, family = "Tahoma", size=2, hjust=0, label = "Property Crimes", color= "white", fill = "#FF2E58") +
-#   # annotate("label", x = 1.4, y = 1600, family = "Tahoma", size=2, hjust=0, label = "Unlawful Use of Weapon", color = "white", fill = "#99112C")
-# 
-# ggsave(here("data_output","alluvial_bond2.pdf"),plot7_2,device="pdf",width=8,height=5)
-# 
-# 
-# ggsave(here("data_output","alluvial_bond.pdf"),plot7,device="pdf",width=8,height=5)
-# plot7_2
-```
 
 
 
